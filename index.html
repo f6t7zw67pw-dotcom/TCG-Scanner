@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#080b12" />
+  <title>Card Wizard Pro</title>
+  <style>
+    :root{
+      --bg:#080b12;--panel:#111827;--panel2:#161f2d;--line:#273244;--text:#f8fafc;--muted:#9ca3af;
+      --brand:#7c3aed;--brand2:#22c55e;--warn:#f59e0b;--bad:#ef4444;--blue:#38bdf8;--chip:#222b3a;
+      --shadow: 0 18px 50px rgba(0,0,0,.35);--radius:22px;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;background:radial-gradient(circle at top left,#182034 0,#080b12 45%,#05070b 100%);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,Arial,sans-serif;min-height:100%;}
+    body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);}
+    button,input,select,textarea{font:inherit;color:inherit}
+    button{border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+    a{color:inherit}.app{max-width:980px;margin:0 auto;padding:18px 14px 92px}.hero{padding:18px 4px 14px}.title{display:flex;align-items:center;gap:12px}.logo{width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,var(--brand),#38bdf8);display:grid;place-items:center;box-shadow:var(--shadow);font-weight:900}.hero h1{font-size:30px;line-height:1;margin:0}.hero p{margin:8px 0 0;color:var(--muted);font-size:15px}.tabs{position:sticky;top:0;z-index:10;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:10px 0;background:linear-gradient(180deg,rgba(8,11,18,.98),rgba(8,11,18,.86));backdrop-filter:blur(12px)}.tab{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:12px 8px;color:var(--muted);font-weight:750}.tab.active{background:linear-gradient(135deg,var(--brand),#2563eb);color:white;border-color:transparent}.grid{display:grid;gap:12px}.card{background:linear-gradient(180deg,rgba(17,24,39,.98),rgba(15,23,42,.94));border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}.card h2,.card h3{margin:0 0 12px}.card h2{font-size:22px}.card h3{font-size:17px}.muted{color:var(--muted)}.small{font-size:12px}.row{display:flex;gap:10px;align-items:center}.row.wrap{flex-wrap:wrap}.between{justify-content:space-between}.btn{border-radius:16px;padding:13px 15px;background:var(--chip);border:1px solid var(--line);font-weight:800;min-height:48px}.btn.primary{background:linear-gradient(135deg,var(--brand),#2563eb);border-color:transparent}.btn.green{background:linear-gradient(135deg,#16a34a,#22c55e);border-color:transparent;color:#04110a}.btn.warn{background:rgba(245,158,11,.17);border-color:rgba(245,158,11,.45);color:#fbbf24}.btn.bad{background:rgba(239,68,68,.15);border-color:rgba(239,68,68,.35);color:#fecaca}.btn.full{width:100%}.btn.ghost{background:transparent}.input,textarea,select{width:100%;background:#0b1220;border:1px solid var(--line);border-radius:15px;padding:13px 12px;outline:none;min-height:48px}textarea{min-height:92px;resize:vertical}label{display:block;margin:10px 0 7px;font-size:13px;color:#cbd5e1;font-weight:750}.drop{border:1.5px dashed #3b4860;border-radius:22px;padding:18px;text-align:center;background:rgba(34,43,58,.45)}.drop input{display:none}.preview{max-height:280px;width:100%;object-fit:contain;border-radius:18px;background:#05070b;border:1px solid var(--line);margin-top:12px}.progress{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:12px 0}.step{height:8px;border-radius:99px;background:#263044}.step.on{background:linear-gradient(90deg,var(--brand),var(--blue))}.pill{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:var(--chip);border:1px solid var(--line);color:#dbeafe;font-size:12px;font-weight:800}.pill.warn{color:#fde68a;border-color:rgba(245,158,11,.45);background:rgba(245,158,11,.12)}.pill.bad{color:#fecaca;border-color:rgba(239,68,68,.45);background:rgba(239,68,68,.12)}.field{padding:12px;border:1px solid var(--line);border-radius:18px;background:rgba(11,18,32,.7);margin-bottom:10px}.field-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.field-title{font-weight:900}.field-value{color:#f8fafc;margin-top:4px;word-break:break-word}.field-actions{display:flex;gap:8px;margin-top:10px}.mini{padding:9px 11px;border-radius:13px;min-height:38px;font-size:13px}.ok{outline:2px solid rgba(34,197,94,.35)}.warnbox{border:1px solid rgba(245,158,11,.35);background:rgba(245,158,11,.12);color:#fde68a;border-radius:16px;padding:12px;margin:10px 0}.badbox{border:1px solid rgba(239,68,68,.35);background:rgba(239,68,68,.12);color:#fecaca;border-radius:16px;padding:12px;margin:10px 0}.urlbox{background:#05070b;border:1px solid var(--line);border-radius:16px;padding:12px;word-break:break-all;color:#bfdbfe;font-size:13px}.collection-item{display:grid;gap:10px}.thumb{width:58px;height:76px;border-radius:10px;object-fit:cover;background:#111827;border:1px solid var(--line)}.filters{display:grid;grid-template-columns:1fr 1fr;gap:8px}.hidden{display:none!important}.toast{position:fixed;left:14px;right:14px;bottom:18px;z-index:50;background:#111827;border:1px solid var(--line);box-shadow:var(--shadow);border-radius:18px;padding:13px 14px;color:#f8fafc}.db-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.footer-note{position:fixed;left:0;right:0;bottom:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:rgba(8,11,18,.9);backdrop-filter:blur(14px);border-top:1px solid var(--line);font-size:12px;color:var(--muted);text-align:center}.badge{display:inline-block;border-radius:10px;padding:4px 7px;font-size:11px;font-weight:900;background:#243044;color:#dbeafe}.badge.miss{background:rgba(245,158,11,.16);color:#fde68a}.kbd{background:#0b1220;border:1px solid var(--line);padding:2px 6px;border-radius:8px}@media(min-width:760px){.two{grid-template-columns:1.15fr .85fr}.filters{grid-template-columns:2fr 1fr 1fr 1fr}.hero h1{font-size:40px}.app{padding-left:22px;padding-right:22px}.tabs{top:0}.collection-item{grid-template-columns:auto 1fr auto;align-items:center}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="hero">
+      <div class="title"><div class="logo">CW</div><div><h1>Card Wizard Pro</h1><p>Mobile-first KI-Scanner für Pokémon-TCG Screenshots → Cardmarket-Link → Sammlung.</p></div></div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="scan">Scanner</button>
+      <button class="tab" data-tab="collection">Sammlung</button>
+      <button class="tab" data-tab="db">Datenbanken</button>
+      <button class="tab" data-tab="help">Hilfe</button>
+    </nav>
+
+    <main id="tab-scan" class="tabpage grid two">
+      <section class="grid">
+        <div class="card">
+          <h2>1. Bild scannen</h2>
+          <div class="progress" id="progress"><span class="step on"></span><span class="step"></span><span class="step"></span><span class="step"></span><span class="step"></span></div>
+          <label class="drop" for="imageInput">
+            <strong>Bild/Screenshot auswählen</strong><br><span class="muted small">Foto, Screenshot von eBay/Cardmarket oder Galerie</span>
+            <input id="imageInput" type="file" accept="image/*" />
+          </label>
+          <img id="preview" class="preview hidden" alt="Vorschau" />
+          <label for="hintText">Optional: sichtbarer Text / Hinweise manuell einfügen</label>
+          <textarea id="hintText" placeholder="z. B. Durengard EX 151/086 WHT Schwäche Rückzug"></textarea>
+          <div class="row wrap" style="margin-top:12px">
+            <button id="scanBtn" class="btn primary">KI-Scanner starten</button>
+            <button id="demoDurengard" class="btn">Demo Durengard</button>
+            <button id="demoRoserade" class="btn">Demo Roserade</button>
+          </div>
+          <div id="scanWarnings"></div>
+        </div>
+
+        <div class="card" id="reviewCard">
+          <div class="row between"><h2>2. Ergebnis prüfen</h2><span id="scannerMode" class="pill">Wartet</span></div>
+          <p class="muted small">Jedes Feld ist editierbar. Der Workflow bricht nicht ab, auch wenn etwas fehlt.</p>
+          <div id="fields"></div>
+        </div>
+      </section>
+
+      <aside class="grid">
+        <div class="card">
+          <h2>3. Cardmarket-Link</h2>
+          <div class="urlbox" id="urlBox">Noch kein Link gebaut.</div>
+          <div class="row wrap" style="margin-top:10px">
+            <button id="buildUrlBtn" class="btn primary">URL bauen</button>
+            <button id="openUrlBtn" class="btn">Öffnen</button>
+            <button id="copyUrlBtn" class="btn">Kopieren</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>4. Preis & Speichern</h2>
+          <label>Zustand</label>
+          <select id="conditionInput">
+            <option>Near Mint</option><option>Excellent</option><option>Good</option><option>Light Played</option><option>Played</option><option>Poor</option>
+          </select>
+          <label>Preis manuell</label>
+          <input id="priceInput" class="input" placeholder="z. B. ab 0,89 €" />
+          <p class="muted small">Wird bereinigt: „€1.23“ → „1,23“, „ab 0,89 €“ → „0,89“.</p>
+          <button id="saveBtn" class="btn green full">Karte in Sammlung speichern</button>
+        </div>
+      </aside>
+    </main>
+
+    <main id="tab-collection" class="tabpage grid hidden">
+      <div class="card">
+        <div class="row between"><h2>Sammlung</h2><span id="countBadge" class="pill">0 Karten</span></div>
+        <div class="filters">
+          <input id="searchCollection" class="input" placeholder="Suche Name, Set, Nummer" />
+          <select id="filterSet"><option value="">Alle Sets</option></select>
+          <select id="filterLang"><option value="">Alle Sprachen</option><option>Deutsch</option><option>Englisch</option><option>Japanisch</option></select>
+          <select id="filterCondition"><option value="">Alle Zustände</option><option>Near Mint</option><option>Excellent</option><option>Good</option><option>Light Played</option><option>Played</option><option>Poor</option></select>
+        </div>
+        <div class="row wrap" style="margin-top:12px">
+          <button id="exportCsvBtn" class="btn">CSV Export</button>
+          <button id="exportJsonBtn" class="btn">JSON Export</button>
+          <label class="btn" for="importCollectionInput">JSON Import</label><input id="importCollectionInput" class="hidden" type="file" accept="application/json" />
+        </div>
+      </div>
+      <div id="collectionList" class="grid"></div>
+    </main>
+
+    <main id="tab-db" class="tabpage grid hidden">
+      <div class="card">
+        <h2>Lokale Datenbanken</h2>
+        <p class="muted small">Alle Mappings werden nur lokal im Browser gespeichert. SetName → SetCode wird automatisch aus SetCode → SetName erzeugt.</p>
+        <div class="row wrap">
+          <button id="resetDbBtn" class="btn warn">Startdaten zurücksetzen</button>
+          <button id="exportDbBtn" class="btn">DB exportieren</button>
+          <label class="btn" for="importDbInput">DB importieren</label><input id="importDbInput" class="hidden" type="file" accept="application/json" />
+        </div>
+      </div>
+      <div class="card">
+        <h3>Pokémon Deutsch → Englisch</h3>
+        <div class="db-grid"><input id="pokeDe" class="input" placeholder="Deutsch, z. B. Glurak" /><input id="pokeEn" class="input" placeholder="Englisch, z. B. Charizard" /></div>
+        <button id="addPokeBtn" class="btn primary full" style="margin-top:8px">Pokémon-Mapping speichern</button>
+        <div id="pokemonMapList" class="grid" style="margin-top:12px"></div>
+      </div>
+      <div class="card">
+        <h3>SetCode → SetName</h3>
+        <div class="db-grid"><input id="setCodeAdd" class="input" placeholder="Code, z. B. LOR" /><input id="setNameAdd" class="input" placeholder="Name, z. B. Lost-Origin" /></div>
+        <button id="addSetBtn" class="btn primary full" style="margin-top:8px">Set-Mapping speichern</button>
+        <div id="setMapList" class="grid" style="margin-top:12px"></div>
+      </div>
+    </main>
+
+    <main id="tab-help" class="tabpage grid hidden">
+      <div class="card">
+        <h2>So nutzt du die App</h2>
+        <p>1. Bild hochladen. 2. KI-Scanner starten. 3. Vorschläge prüfen/bearbeiten. 4. Cardmarket-Link bauen. 5. Preis manuell eintragen. 6. Speichern.</p>
+        <div class="warnbox"><strong>Wichtig:</strong> Cardmarket-Preise werden nicht gescraped. eBay-Server-Scraping ist deaktiviert. Fehler werden nur als Warnung angezeigt und blockieren nie den Workflow.</div>
+        <p class="muted small">Für echte Bild-KI auf Vercel muss die Datei <span class="kbd">api/scan.js</span> vorhanden sein und die Environment Variable <span class="kbd">OPENAI_API_KEY</span> gesetzt werden. Ohne Key läuft die App weiter mit lokalem Vorschlagsmodus und manueller Eingabe.</p>
+      </div>
+      <div class="card">
+        <h3>CardVersion Regeln</h3>
+        <p class="muted">Normal → leer · EX/V → V1 · Illustration Rare/Full Art → V2 · Special Illustration Rare → V3 · Gold/Secret Rare → V4</p>
+      </div>
+    </main>
+  </div>
+  <div class="footer-note">Card Wizard Pro · Daten lokal gespeichert · KI-Scanner mit Fallback ohne Abbruch</div>
+  <div id="toast" class="toast hidden"></div>
+
+<script>
+'use strict';
+const LS = { db:'cwp.db.v2', collection:'cwp.collection.v2' };
+const DEFAULT_POKEMON = {
+  "Durengard":"Aegislash","Glurak":"Charizard","Mewtu":"Mewtwo","Chillabell":"Cinccino","Schnuthelm":"Shelmet","Fukano":"Growlithe","Roserade":"Roserade","Barschuft":"Basculin","Shardrago":"Druddigon","Pikachu":"Pikachu","Oricorio":"Oricorio","Mega Glurak X":"Mega Charizard X","Mega Glurak Y":"Mega Charizard Y","Alola Vulpix":"Alolan Vulpix","Galar Lavados":"Galarian Moltres","Hisui Zoroark":"Hisuian Zoroark"
+};
+const DEFAULT_SETS = {
+  "SSH":"Sword-Shield","RCL":"Rebel-Clash","DAA":"Darkness-Ablaze","VIV":"Vivid-Voltage","BST":"Battle-Styles","CRE":"Chilling-Reign","EVS":"Evolving-Skies","FST":"Fusion-Strike","BRS":"Brilliant-Stars","ASR":"Astral-Radiance","LOR":"Lost-Origin","SIT":"Silver-Tempest","CRZ":"Crown-Zenith","CPA":"Champions-Path","SHF":"Shining-Fates","CEL":"Celebrations","PGO":"Pokemon-GO","SVI":"Scarlet-Violet","PAL":"Paldea-Evolved","OBF":"Obsidian-Flames","MEW":"Pokemon-151","PAR":"Paradox-Rift","PAF":"Paldean-Fates","TEF":"Temporal-Forces","TWM":"Twilight-Masquerade","SFA":"Shrouded-Fable","SCR":"Stellar-Crown","SSP":"Surging-Sparks","PRE":"Prismatic-Evolutions","JTG":"Journey-Together","DRI":"Destined-Rivals","BLK":"Black-Bolt","WHT":"White-Flare","SVP":"Scarlet-Violet-Promos","MEG":"Mega-Evolution","PFL":"Phantasmal-Flames","ASC":"Ascended-Heroes","POR":"Perfect-Order","CHR":"Chaos-Rising"
+};
+const FIELD_DEFS = [
+  ['rawName','Pokémonname / Originalname'],['cardmarketName','Cardmarket-Name'],['fullNumber','Kartennummer'],['searchNumber','Suchnummer'],['setCode','SetCode'],['setName','SetName'],['languageGuess','Sprache'],['cardType','Kartentyp'],['cardVersion','CardVersion']
+];
+const $ = (id)=>document.getElementById(id);
+let db = loadDb();
+let collection = loadJson(LS.collection, []);
+let state = emptyScan();
+let imageDataUrl = '';
+
+function emptyScan(){ return { rawName:null, basePokemonName:null, suffix:null, translatedBaseName:null, cardmarketName:null, fullNumber:null, searchNumber:null, setCode:null, setName:null, languageGuess:null, languageCode:null, cardType:'Normal', cardVersion:'', confidence:{name:0,number:0,setCode:0,language:0}, warnings:[] }; }
+function loadJson(key, fallback){ try{ const v=localStorage.getItem(key); return v?JSON.parse(v):fallback; }catch(e){ return fallback; } }
+function saveJson(key, value){ localStorage.setItem(key, JSON.stringify(value)); }
+function loadDb(){ const existing=loadJson(LS.db,null); return existing && existing.pokemon && existing.sets ? existing : {pokemon:{...DEFAULT_POKEMON}, sets:{...DEFAULT_SETS}}; }
+function saveDb(){ saveJson(LS.db, db); renderDb(); }
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.remove('hidden'); clearTimeout(window.__toast); window.__toast=setTimeout(()=>t.classList.add('hidden'),3200); }
+function slug(s){ return String(s||'').trim().replace(/\s+/g,'-').replace(/[^A-Za-z0-9ÄÖÜäöüß.\-]/g,'').replace(/-+/g,'-'); }
+function normKey(s){ return String(s||'').trim().toLowerCase().replace(/[\s_]+/g,'-'); }
+function reverseSets(){ const out={}; Object.entries(db.sets).forEach(([code,name])=>out[normKey(name)] = code); return out; }
+function setProgress(n){ document.querySelectorAll('.step').forEach((el,i)=>el.classList.toggle('on',i<n)); }
+function normalizeCardNumber(input){ const v=String(input||'').trim().toUpperCase().replace(/\s/g,''); if(!v) return {fullNumber:null,searchNumber:null}; const slash=v.match(/(\d{1,4})\s*\/\s*(\d{1,4})/); if(slash) return {fullNumber:`${slash[1]}/${slash[2]}`, searchNumber:slash[1]}; const tg=v.match(/\b(TG\d{1,3}|GG\d{1,3})\b/i); if(tg) return {fullNumber:tg[1].toUpperCase(), searchNumber:tg[1].toUpperCase()}; const plain=v.match(/\b\d{1,4}\b/); return plain?{fullNumber:plain[0],searchNumber:plain[0]}:{fullNumber:v,searchNumber:v}; }
+function detectSuffix(rawName){ const raw=String(rawName||'').trim().replace(/\s+/g,' '); const suffixes=['VMAX','VSTAR','BREAK','LV.X','EX','ex','GX','V']; for(const s of suffixes){ const re=new RegExp(`\\s+${s.replace('.','\\.')}\\s*$`,'i'); if(re.test(raw)){ return {base:raw.replace(re,'').trim(), suffix:s.toUpperCase()==='EX'||s==='ex'?'EX':s.toUpperCase()}; } } return {base:raw, suffix:''}; }
+function translatePokemonName(base){ if(!base) return null; const exact = db.pokemon[base]; if(exact) return exact; const found = Object.entries(db.pokemon).find(([de])=>de.toLowerCase()===String(base).toLowerCase()); return found?found[1]:base; }
+function buildCardmarketName(raw){ const {base,suffix}=detectSuffix(raw); const en=translatePokemonName(base); if(!en) return null; return suffix?`${slug(en)}-${suffix}`:slug(en); }
+function resolveSetFromCode(code){ if(!code) return null; return db.sets[String(code).trim().toUpperCase()] || null; }
+function resolveCodeFromSetName(name){ if(!name) return null; return reverseSets()[normKey(name)] || null; }
+function detectLanguage(text){ const t=String(text||''); if(/[\u3040-\u30ff\u3400-\u9fff]/.test(t)) return {label:'Japanisch', code:'7', conf:.92}; if(/Schwäche|Resistenz|Rückzug|Entwickelt sich aus|Fähigkeit/i.test(t)) return {label:'Deutsch', code:'3', conf:.82}; if(/Weakness|Resistance|Retreat|Evolves from|Ability/i.test(t)) return {label:'Englisch', code:'1', conf:.82}; return {label:'Deutsch', code:'3', conf:.35}; }
+function cardVersionForType(t){ const s=String(t||'').toLowerCase(); if(/gold|secret/.test(s)) return 'V4'; if(/special/.test(s)) return 'V3'; if(/illustration|full art|fullart/.test(s)) return 'V2'; if(/\bex\b|\bv\b/.test(s)) return 'V1'; return ''; }
+function cleanPriceInput(v){ const s=String(v||'').replace(/€/g,' ').replace(/eur/ig,' ').replace(/preis:?/ig,' ').replace(/ab/ig,' ').trim(); const m=s.match(/\d+[,.]\d{1,2}|\d+/); if(!m) return ''; const parts=m[0].replace('.',',').split(','); return parts.length>1?`${parts[0]},${parts[1].padEnd(2,'0').slice(0,2)}`:parts[0]; }
+function buildCardmarketUrl(data){ const setName=slug(data.setName); const cm=slug(data.cardmarketName); const code=String(data.setCode||'').trim().toUpperCase(); const num=String(data.searchNumber||'').trim().toUpperCase(); const lang=String(data.languageCode||'3').trim(); const version=String(data.cardVersion||'').trim(); if(!setName||!cm||!code||!num) return ''; const product=version?`${cm}-${version}-${code}${num}`:`${cm}-${code}${num}`; return `https://www.cardmarket.com/de/Pokemon/Products/Singles/${setName}/${product}?sellerCountry=7&language=${encodeURIComponent(lang)}`; }
+function normalizeScan(input){ const out={...emptyScan(), ...(input||{})}; out.confidence={...emptyScan().confidence, ...(input&&input.confidence||{})}; out.warnings=Array.isArray(out.warnings)?out.warnings:[];
+  if(out.rawName){ const ds=detectSuffix(out.rawName); out.basePokemonName=out.basePokemonName||ds.base; out.suffix=out.suffix||ds.suffix; out.translatedBaseName=out.translatedBaseName||translatePokemonName(out.basePokemonName); out.cardmarketName=out.cardmarketName||buildCardmarketName(out.rawName); }
+  const n=normalizeCardNumber(out.fullNumber||out.searchNumber); out.fullNumber=out.fullNumber||n.fullNumber; out.searchNumber=out.searchNumber||n.searchNumber;
+  if(out.setCode && !out.setName) out.setName=resolveSetFromCode(out.setCode);
+  if(out.setName && !out.setCode) out.setCode=resolveCodeFromSetName(out.setName);
+  if(out.setCode) out.setCode=String(out.setCode).toUpperCase();
+  if(out.cardType && !out.cardVersion) out.cardVersion=cardVersionForType(out.cardType);
+  if(out.languageGuess && !out.languageCode) out.languageCode = out.languageGuess==='Englisch'?'1':out.languageGuess==='Japanisch'?'7':'3';
+  return out;
+}
+function localHintScan(text){ const t=String(text||''); const out=emptyScan(); const allNames=[...Object.keys(db.pokemon),...Object.values(db.pokemon)].sort((a,b)=>b.length-a.length); const suffix='(?:VMAX|VSTAR|BREAK|LV\\.X|EX|ex|GX|V)'; for(const name of allNames){ const re=new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(?:\\s+${suffix})?\\b`,'i'); const m=t.match(re); if(m){ out.rawName=m[0].replace(/\s+/g,' ').trim(); break; } }
+  if(!out.rawName){ const guess=t.match(/\b([A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,3})(?:\s+(VMAX|VSTAR|BREAK|LV\.X|EX|ex|GX|V))?\b/); if(guess) out.rawName=guess[0]; }
+  const num=t.match(/\b\d{1,4}\s*\/\s*\d{1,4}\b|\b(?:TG|GG)\d{1,3}\b/i); if(num){ const n=normalizeCardNumber(num[0]); out.fullNumber=n.fullNumber; out.searchNumber=n.searchNumber; out.confidence.number=.7; }
+  const setCode=t.match(/\b(SSH|RCL|DAA|VIV|BST|CRE|EVS|FST|BRS|ASR|LOR|SIT|CRZ|CPA|SHF|CEL|PGO|SVI|PAL|OBF|MEW|PAR|PAF|TEF|TWM|SFA|SCR|SSP|PRE|JTG|DRI|BLK|WHT|SVP|MEG|PFL|ASC|POR|CHR)\b/i); if(setCode){ out.setCode=setCode[1].toUpperCase(); out.setName=resolveSetFromCode(out.setCode); out.confidence.setCode=.7; }
+  if(!out.setName){ const found=Object.values(db.sets).find(n=>t.toLowerCase().includes(n.toLowerCase())); if(found){ out.setName=found; out.setCode=resolveCodeFromSetName(found); }}
+  const lang=detectLanguage(t); out.languageGuess=lang.label; out.languageCode=lang.code; out.confidence.language=lang.conf; out.confidence.name=out.rawName ? 0.3 : 0;
+  out.warnings.push('Lokaler Vorschlagsmodus: Ohne aktivierte Server-KI kann das Bild selbst nicht sicher gelesen werden. Du kannst alle Felder bearbeiten.');
+  return normalizeScan(out);
+}
+async function compressImage(file){ return new Promise((resolve,reject)=>{ const reader=new FileReader(); reader.onerror=()=>reject(new Error('Bild konnte nicht gelesen werden.')); reader.onload=()=>{ const img=new Image(); img.onerror=()=>reject(new Error('Bildformat nicht lesbar.')); img.onload=()=>{ const max=1280; let {width,height}=img; const scale=Math.min(1,max/Math.max(width,height)); width=Math.round(width*scale); height=Math.round(height*scale); const canvas=document.createElement('canvas'); canvas.width=width; canvas.height=height; const ctx=canvas.getContext('2d'); ctx.drawImage(img,0,0,width,height); resolve(canvas.toDataURL('image/jpeg',.82)); }; img.src=reader.result; }; reader.readAsDataURL(file); }); }
+async function scanCardWithAI(){ const hints=$('hintText').value; setProgress(2); $('scannerMode').textContent='KI läuft'; $('scannerMode').className='pill'; $('scanWarnings').innerHTML=''; try{
+    if(imageDataUrl){ const resp=await fetch('/api/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageDataUrl,hints,pokemonMap:db.pokemon,setMap:db.sets})}); const data=await resp.json().catch(()=>({})); if(resp.ok && data && data.result){ const result=normalizeScan(data.result); result.warnings=(result.warnings||[]).concat(data.warning?[data.warning]:[]); $('scannerMode').textContent=data.provider==='openai'?'KI Vision':'KI Fallback'; $('scannerMode').className='pill'; return result; } throw new Error(data.error || 'KI-Server nicht aktiv'); }
+    return localHintScan(hints);
+  }catch(e){ const fallback=localHintScan(hints); fallback.warnings.push('KI-Scanner konnte nicht vollständig laufen: '+e.message); $('scannerMode').textContent='Fallback'; $('scannerMode').className='pill warn'; return fallback; }
+}
+function renderWarnings(){ const list=state.warnings||[]; $('scanWarnings').innerHTML=list.map(w=>`<div class="warnbox">${escapeHtml(w)}</div>`).join(''); }
+function escapeHtml(s){ return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function renderFields(){ const holder=$('fields'); holder.innerHTML=''; FIELD_DEFS.forEach(([key,label])=>{ const val=state[key]??''; const div=document.createElement('div'); div.className='field'; div.innerHTML=`<div class="field-top"><div><div class="field-title">${label}</div><div class="field-value" id="value-${key}">${escapeHtml(val || '—')}</div></div><span class="badge">${key}</span></div><div class="field-actions"><button class="btn mini green" data-ok="${key}">Passt</button><button class="btn mini" data-edit="${key}">Bearbeiten</button>${key==='setName'||key==='setCode'?'<button class="btn mini warn" data-setmanual="1">Setname eingeben</button>':''}</div>`; holder.appendChild(div); });
+  holder.querySelectorAll('[data-ok]').forEach(b=>b.onclick=()=>{ b.closest('.field').classList.add('ok'); toast('Feld bestätigt'); });
+  holder.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editField(b.dataset.edit));
+  holder.querySelectorAll('[data-setmanual]').forEach(b=>b.onclick=()=>editSetManual());
+}
+function editField(key){ let current=state[key]??''; let nv=prompt(`Neuer Wert für ${key}:`, current); if(nv===null) return; if(key==='fullNumber'||key==='searchNumber'){ const n=normalizeCardNumber(nv); state.fullNumber=n.fullNumber; state.searchNumber=n.searchNumber; } else if(key==='setCode'){ state.setCode=nv.trim().toUpperCase(); state.setName=resolveSetFromCode(state.setCode)||state.setName||''; } else if(key==='setName'){ state.setName=nv.trim(); state.setCode=resolveCodeFromSetName(state.setName)||state.setCode||''; } else if(key==='rawName'){ state.rawName=nv.trim(); state=normalizeScan(state); } else if(key==='languageGuess'){ state.languageGuess=nv.trim(); state.languageCode=state.languageGuess==='Englisch'?'1':state.languageGuess==='Japanisch'?'7':'3'; } else if(key==='cardType'){ state.cardType=nv.trim(); state.cardVersion=cardVersionForType(nv); } else { state[key]=nv.trim(); }
+  state=normalizeScan(state); renderFields(); buildUrl(); }
+function editSetManual(){ const nv=prompt('Setname eingeben, z. B. Lost-Origin:', state.setName||''); if(nv===null) return; state.setName=nv.trim(); state.setCode=resolveCodeFromSetName(state.setName)||state.setCode||''; if(!state.setCode) state.warnings.push('Kein SetCode zum eingegebenen Setnamen gefunden. Du kannst ihn manuell bearbeiten oder in der Datenbank ergänzen.'); state=normalizeScan(state); renderFields(); renderWarnings(); buildUrl(); }
+function buildUrl(){ state=normalizeScan(state); const url=buildCardmarketUrl(state); state.cardmarketUrl=url; $('urlBox').textContent=url || 'Noch nicht genug Daten: SetName, Cardmarket-Name, SetCode und Suchnummer prüfen.'; setProgress(url?4:3); return url; }
+function saveCard(){ const url=buildUrl(); const price=cleanPriceInput($('priceInput').value); const item={ id: crypto.randomUUID?crypto.randomUUID():String(Date.now()), originalName:state.rawName||'', cardmarketName:state.cardmarketName||'', fullNumber:state.fullNumber||'', searchNumber:state.searchNumber||'', setCode:state.setCode||'', setName:state.setName||'', languageLabel:state.languageGuess||'', languageCode:state.languageCode||'', condition:$('conditionInput').value, cardType:state.cardType||'', cardVersion:state.cardVersion||'', price, cardmarketUrl:url, createdAt:new Date().toISOString(), thumbnail:imageDataUrl||'' };
+  collection.unshift(item); saveJson(LS.collection,collection); setProgress(5); renderCollection(); toast('Karte gespeichert'); }
+function renderCollection(){ $('countBadge').textContent=`${collection.length} Karten`; const setSel=$('filterSet'); const old=setSel.value; setSel.innerHTML='<option value="">Alle Sets</option>'+[...new Set(collection.map(x=>x.setName).filter(Boolean))].sort().map(s=>`<option>${escapeHtml(s)}</option>`).join(''); setSel.value=old;
+  const q=$('searchCollection').value.toLowerCase(); const fs=$('filterSet').value, fl=$('filterLang').value, fc=$('filterCondition').value; const list=collection.filter(x=>{ const hay=[x.originalName,x.cardmarketName,x.fullNumber,x.searchNumber,x.setCode,x.setName].join(' ').toLowerCase(); return (!q||hay.includes(q))&&(!fs||x.setName===fs)&&(!fl||x.languageLabel===fl)&&(!fc||x.condition===fc); });
+  $('collectionList').innerHTML=list.length?list.map(x=>`<div class="card collection-item"><div class="row">${x.thumbnail?`<img class="thumb" src="${x.thumbnail}" alt="">`:''}<div><h3>${escapeHtml(x.cardmarketName||x.originalName||'Unbenannte Karte')} ${!x.price?'<span class="badge miss">Preis fehlt</span>':''}</h3><div class="muted small">${escapeHtml(x.setName)} · ${escapeHtml(x.setCode)}${escapeHtml(x.searchNumber)} · ${escapeHtml(x.languageLabel)} · ${escapeHtml(x.condition)}</div><div class="muted small">${escapeHtml(x.fullNumber)} · ${new Date(x.createdAt).toLocaleString('de-DE')}</div></div></div><div class="row wrap"><button class="btn mini" data-open="${x.id}">Link</button><button class="btn mini" data-price="${x.id}">Preis: ${escapeHtml(x.price||'—')}</button><button class="btn mini bad" data-delete="${x.id}">Löschen</button></div></div>`).join(''):'<div class="card muted">Noch keine Karten gespeichert.</div>';
+  $('collectionList').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{ const x=collection.find(i=>i.id===b.dataset.open); if(x?.cardmarketUrl) window.open(x.cardmarketUrl,'_blank'); else toast('Kein Link vorhanden'); });
+  $('collectionList').querySelectorAll('[data-price]').forEach(b=>b.onclick=()=>{ const x=collection.find(i=>i.id===b.dataset.price); const nv=prompt('Preis eintragen/bearbeiten:', x.price||''); if(nv!==null){ x.price=cleanPriceInput(nv); saveJson(LS.collection,collection); renderCollection(); }});
+  $('collectionList').querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>{ if(confirm('Karte löschen?')){ collection=collection.filter(i=>i.id!==b.dataset.delete); saveJson(LS.collection,collection); renderCollection(); }});
+}
+function exportCsv(){ const head=['originalName','cardmarketName','fullNumber','searchNumber','setCode','setName','languageLabel','languageCode','condition','cardType','cardVersion','price','cardmarketUrl','createdAt']; const rows=[head.join(';')].concat(collection.map(x=>head.map(k=>'"'+String(x[k]||'').replace(/"/g,'""')+'"').join(';'))); downloadText('card-wizard-collection.csv', rows.join('\n'), 'text/csv'); }
+function exportJson(){ downloadText('card-wizard-collection.json', JSON.stringify(collection,null,2),'application/json'); }
+function exportDb(){ downloadText('card-wizard-db.json', JSON.stringify(db,null,2),'application/json'); }
+function downloadText(filename,text,type){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
+function renderDb(){ const p=$('pokemonMapList'); p.innerHTML=Object.entries(db.pokemon).sort().map(([de,en])=>`<div class="field"><div class="row between"><span><strong>${escapeHtml(de)}</strong> → ${escapeHtml(en)}</span><button class="btn mini bad" data-pdel="${escapeHtml(de)}">Löschen</button></div></div>`).join(''); p.querySelectorAll('[data-pdel]').forEach(b=>b.onclick=()=>{ delete db.pokemon[b.dataset.pdel]; saveDb(); });
+ const s=$('setMapList'); s.innerHTML=Object.entries(db.sets).sort().map(([code,name])=>`<div class="field"><div class="row between"><span><strong>${escapeHtml(code)}</strong> → ${escapeHtml(name)}</span><button class="btn mini bad" data-sdel="${escapeHtml(code)}">Löschen</button></div></div>`).join(''); s.querySelectorAll('[data-sdel]').forEach(b=>b.onclick=()=>{ delete db.sets[b.dataset.sdel]; saveDb(); }); }
+function setupEvents(){ document.querySelectorAll('.tab').forEach(btn=>btn.onclick=()=>{ document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('.tabpage').forEach(p=>p.classList.add('hidden')); $('tab-'+btn.dataset.tab).classList.remove('hidden'); if(btn.dataset.tab==='collection') renderCollection(); if(btn.dataset.tab==='db') renderDb(); });
+ $('imageInput').onchange=async(e)=>{ const file=e.target.files[0]; if(!file) return; try{ imageDataUrl=await compressImage(file); $('preview').src=imageDataUrl; $('preview').classList.remove('hidden'); toast('Bild geladen und für KI komprimiert'); }catch(err){ toast(err.message); }};
+ $('scanBtn').onclick=async()=>{ $('scanBtn').disabled=true; $('scanBtn').textContent='Analysiere…'; try{ state=await scanCardWithAI(); renderFields(); renderWarnings(); buildUrl(); setProgress(3); }finally{ $('scanBtn').disabled=false; $('scanBtn').textContent='KI-Scanner starten'; }};
+ $('demoDurengard').onclick=()=>{ $('hintText').value='Durengard EX 151/086 WHT Schwäche Rückzug'; state=localHintScan($('hintText').value); renderFields(); renderWarnings(); buildUrl(); };
+ $('demoRoserade').onclick=()=>{ $('hintText').value='Roserade TG02 Lost-Origin Schwäche Rückzug Illustration Rare'; state=localHintScan($('hintText').value); state.cardType='Illustration Rare / Full Art'; state.cardVersion='V2'; state=normalizeScan(state); renderFields(); renderWarnings(); buildUrl(); };
+ $('buildUrlBtn').onclick=buildUrl; $('openUrlBtn').onclick=()=>{ const u=buildUrl(); if(u) window.open(u,'_blank'); else toast('Erst fehlende Felder bearbeiten.');}; $('copyUrlBtn').onclick=async()=>{ const u=buildUrl(); if(!u) return toast('Kein Link vorhanden'); try{ await navigator.clipboard.writeText(u); toast('Link kopiert'); }catch(e){ prompt('Link kopieren:',u); }}; $('saveBtn').onclick=saveCard;
+ ['searchCollection','filterSet','filterLang','filterCondition'].forEach(id=>$(id).oninput=renderCollection); $('exportCsvBtn').onclick=exportCsv; $('exportJsonBtn').onclick=exportJson;
+ $('importCollectionInput').onchange=(e)=>importFile(e, arr=>{ if(Array.isArray(arr)){ collection=arr.concat(collection); saveJson(LS.collection,collection); renderCollection(); toast('Sammlung importiert'); }});
+ $('addPokeBtn').onclick=()=>{ const de=$('pokeDe').value.trim(), en=$('pokeEn').value.trim(); if(!de||!en) return toast('Bitte beide Felder ausfüllen'); db.pokemon[de]=en; $('pokeDe').value=''; $('pokeEn').value=''; saveDb(); };
+ $('addSetBtn').onclick=()=>{ const code=$('setCodeAdd').value.trim().toUpperCase(), name=$('setNameAdd').value.trim(); if(!code||!name) return toast('Bitte Code und Name ausfüllen'); db.sets[code]=name; $('setCodeAdd').value=''; $('setNameAdd').value=''; saveDb(); };
+ $('resetDbBtn').onclick=()=>{ if(confirm('Startdaten wiederherstellen? Eigene DB-Mappings werden ersetzt.')){ db={pokemon:{...DEFAULT_POKEMON},sets:{...DEFAULT_SETS}}; saveDb(); }}; $('exportDbBtn').onclick=exportDb; $('importDbInput').onchange=(e)=>importFile(e, data=>{ if(data?.pokemon&&data?.sets){ db=data; saveDb(); toast('DB importiert'); }});
+ $('priceInput').addEventListener('blur',()=>{$('priceInput').value=cleanPriceInput($('priceInput').value);});
+}
+function importFile(e, cb){ const file=e.target.files[0]; if(!file) return; const r=new FileReader(); r.onload=()=>{ try{ cb(JSON.parse(r.result)); }catch(err){ toast('Import fehlgeschlagen: ungültiges JSON'); } }; r.readAsText(file); e.target.value=''; }
+function init(){ setupEvents(); state=emptyScan(); renderFields(); renderCollection(); renderDb(); setProgress(1); }
+init();
+</script>
+</body>
+</html>
