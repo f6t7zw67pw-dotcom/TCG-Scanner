@@ -38,7 +38,7 @@ function buildPokemonMap(csv) {
     const id = Number(pokemonSpeciesId);
     const lang = Number(localLanguageId);
     if (!byId.has(id)) byId.set(id, {});
-    if (lang === 5) byId.get(id).de = name;
+    if (lang === 6) byId.get(id).de = name;
     if (lang === 9) byId.get(id).en = name;
   }
 
