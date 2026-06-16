@@ -1,13 +1,52 @@
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const NAMES_CSV_URL = 'https://raw.githubusercontent.com/PokeAPI/pokeapi/master/data/v2/csv/pokemon_species_names.csv';
 let cachedAt = 0;
 let cachedPokemon = null;
 
-async function fetchJson(url) {
+function parseCsvLine(line) {
+  const out = [];
+  let cur = '';
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; continue; }
+    if (ch === '"') { quoted = !quoted; continue; }
+    if (ch === ',' && !quoted) { out.push(cur); cur = ''; continue; }
+    cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+async function fetchText(url) {
   const response = await fetch(url, {
-    headers: { 'User-Agent': 'CardWizardPro/1.0' }
+    headers: {
+      'User-Agent': 'CardWizardPro/1.0',
+      'Accept': 'text/csv,text/plain,*/*'
+    }
   });
-  if (!response.ok) throw new Error(`PokeAPI Fehler ${response.status}`);
-  return response.json();
+  if (!response.ok) throw new Error(`Pokemon DB Quelle Fehler ${response.status}`);
+  return response.text();
+}
+
+function buildPokemonMap(csv) {
+  const byId = new Map();
+  for (const line of csv.split(/\r?\n/).slice(1)) {
+    if (!line.trim()) continue;
+    const [pokemonSpeciesId, localLanguageId, name] = parseCsvLine(line);
+    if (!pokemonSpeciesId || !localLanguageId || !name) continue;
+    const id = Number(pokemonSpeciesId);
+    const lang = Number(localLanguageId);
+    if (!byId.has(id)) byId.set(id, {});
+    if (lang === 5) byId.get(id).de = name;
+    if (lang === 9) byId.get(id).en = name;
+  }
+
+  const pokemon = {};
+  for (const entry of byId.values()) {
+    if (entry.de && entry.en) pokemon[entry.de] = entry.en;
+  }
+  return pokemon;
 }
 
 export default async function handler(req, res) {
@@ -19,16 +58,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, count: Object.keys(cachedPokemon).length, pokemon: cachedPokemon, cached: true });
     }
 
-    const list = await fetchJson('https://pokeapi.co/api/v2/pokemon-species?limit=2000');
-    const species = await Promise.all(
-      (list.results || []).map(async item => {
-        const data = await fetchJson(item.url);
-        const names = Object.fromEntries((data.names || []).map(n => [n.language?.name, n.name]));
-        return names.de && names.en ? [names.de, names.en] : null;
-      })
-    );
-
-    cachedPokemon = Object.fromEntries(species.filter(Boolean));
+    cachedPokemon = buildPokemonMap(await fetchText(NAMES_CSV_URL));
     cachedAt = now;
 
     return res.status(200).json({ ok: true, count: Object.keys(cachedPokemon).length, pokemon: cachedPokemon, cached: false });
