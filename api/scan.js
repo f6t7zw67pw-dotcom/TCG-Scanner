@@ -13,7 +13,7 @@ export default async function handler(req, res) {
       : '{"mode":"single","listing":{"ebayPrice":"","shipping":"","listingType":"","notes":[]},"cards":[{"originalName":"","fullNumber":"","searchNumber":"","setCode":"","setName":"","languageGuess":"","languageCode":"","cardType":"","cardVersion":"","confidence":0,"warnings":[]}]}' ;
     const prompt = mode === 'multi'
       ? `Du bist ein Pokémon-TCG Multi-Karten Ankauf-Scanner. Erkenne jede sichtbare Karte separat. Erfinde nichts. Fehlende Felder leer lassen und warnings setzen. eBay Gesamtpreis/Gebot und Versand nur erfassen, wenn sichtbar. Cardmarket-Preise nicht schätzen. Gib ausschließlich JSON in diesem Format zurück: ${schema}`
-      : `Du bist ein Pokémon-TCG Einzelkarten-Scanner. Erkenne Karte, Nummer, Set, Sprache sowie sichtbaren eBay Preis/Gebot und Versand. Erfinde nichts. Gib ausschließlich JSON in diesem Format zurück: ${schema}`;
+      : `Du bist ein Pokémon-TCG Einzelkarten-Crop-Scanner. Das Bild zeigt normalerweise genau eine Karte oder einen engen Ausschnitt einer Karte. Analysiere nur diese eine Karte. Lies zuerst den Pokémon-Namen, dann die Kartennummer unten, danach SetCode/SetName falls sichtbar. Gewichte gedruckte Kartennummern stärker als dekorativen Text. Erfinde nichts: wenn Name, Nummer oder Set nicht klar lesbar sind, lasse das Feld leer und schreibe eine kurze warning. Keine Cardmarket-Preise schätzen. Gib ausschließlich JSON in diesem Format zurück: ${schema}`;
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
