@@ -55,6 +55,10 @@ export default async function handler(req, res) {
         .replace(/^SVBA$/, 'SV8A');
     }
 
+    function quote(value) {
+      return `"${String(value || '').replace(/"/g, '').trim()}"`;
+    }
+
     const name = normalizeName(rawName);
     const base = baseName(rawName);
     const nameFolded = fold(name);
@@ -67,15 +71,25 @@ export default async function handler(req, res) {
       if (query && !queries.includes(query)) queries.push(query);
     };
 
+    if (name && number && setCode) addQuery(`name:${quote(name)} number:${number} set.ptcgoCode:${setCode}`);
+    if (base && number && setCode) addQuery(`name:${quote(base)} number:${number} set.ptcgoCode:${setCode}`);
     if (base && number && setCode) addQuery(`name:${base} number:${number} set.ptcgoCode:${setCode}`);
-    if (name && number) addQuery(`name:"${name}" number:${number}`);
+
+    if (name && number) addQuery(`name:${quote(name)} number:${number}`);
+    if (base && number) addQuery(`name:${quote(base)} number:${number}`);
     if (base && number) addQuery(`name:${base} number:${number}`);
+
+    if (name && setCode) addQuery(`name:${quote(name)} set.ptcgoCode:${setCode}`);
+    if (base && setCode) addQuery(`name:${quote(base)} set.ptcgoCode:${setCode}`);
+    if (base && setCode) addQuery(`name:${base} set.ptcgoCode:${setCode}`);
+
     if (number && setCode) addQuery(`number:${number} set.ptcgoCode:${setCode}`);
-    if (name) addQuery(`name:"${name}"`);
-    if (rawName) addQuery(`name:"${rawName}"`);
+    if (name) addQuery(`name:${quote(name)}`);
+    if (rawName) addQuery(`name:${quote(rawName)}`);
     if (base) addQuery(`name:${base}`);
-    if (base) addQuery(`name:"${base}"`);
+    if (base) addQuery(`name:${quote(base)}`);
     if (number) addQuery(`number:${number}`);
+    if (setCode) addQuery(`set.ptcgoCode:${setCode}`);
 
     const seen = new Set();
     const cards = [];
