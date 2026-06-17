@@ -121,7 +121,7 @@ export default async function handler(req, res) {
     }
 
     for (const q of queries) {
-      const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(q)}&pageSize=25&orderBy=-set.releaseDate`;
+      const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(q)}&pageSize=50&orderBy=-set.releaseDate`;
       const response = await fetch(url, {
         headers: process.env.POKEMON_TCG_API_KEY ? { 'X-Api-Key': process.env.POKEMON_TCG_API_KEY } : {}
       });
@@ -149,11 +149,11 @@ export default async function handler(req, res) {
         };
         cards.push({ ...card, score: scoreCard(card) });
       }
-      if (cards.length >= 30) break;
+      if (cards.length >= 60) break;
     }
 
     cards.sort((a, b) => b.score - a.score);
-    return res.status(200).json({ ok: true, query: usedQuery || queries[0] || '', cards: cards.slice(0, 5) });
+    return res.status(200).json({ ok: true, query: usedQuery || queries[0] || '', cards: cards.slice(0, 12) });
   } catch (err) {
     return res.status(500).json({ ok: false, error: err?.message || 'Serverfehler' });
   }
