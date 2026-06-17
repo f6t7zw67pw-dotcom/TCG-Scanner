@@ -101,9 +101,88 @@
     });
   }
 
+  function clearField(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = '';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function resetScanAfterSave() {
+    if (typeof window.clearImage === 'function') window.clearImage();
+    try { localStorage.removeItem('cw_last_image'); } catch {}
+
+    [
+      'visibleText',
+      'originalName',
+      'cardmarketName',
+      'fullNumber',
+      'searchNumber',
+      'setCode',
+      'setName',
+      'sellPrice',
+      'ebayPrice',
+      'shipping',
+      'lotName',
+      'lotEbayPrice',
+      'lotShipping'
+    ].forEach(clearField);
+
+    const imageInput = document.getElementById('imageInput');
+    if (imageInput) imageInput.value = '';
+
+    const singleMatches = document.getElementById('singleMatches');
+    if (singleMatches) singleMatches.innerHTML = '';
+
+    const cropPreview = document.getElementById('cropPreview');
+    if (cropPreview) cropPreview.innerHTML = '';
+
+    const multiResults = document.getElementById('multiResults');
+    if (multiResults) multiResults.innerHTML = '';
+
+    if (Array.isArray(window.multiCards)) window.multiCards.length = 0;
+    if (Array.isArray(window.cropImages)) window.cropImages.length = 0;
+
+    const cmUrl = document.getElementById('cmUrl');
+    if (cmUrl) cmUrl.textContent = 'Noch nicht genug Daten.';
+
+    const nameHint = document.getElementById('nameHint');
+    if (nameHint) nameHint.textContent = 'Pokemon-DB bereit.';
+
+    const scanStatus = document.getElementById('scanStatus');
+    if (scanStatus) scanStatus.textContent = 'Bereit fuer den naechsten Scan.';
+
+    const scanProgress = document.getElementById('scanProgress');
+    if (scanProgress) scanProgress.style.width = '35%';
+
+    if (typeof window.updateProfit === 'function') window.updateProfit();
+    if (typeof window.updateMultiProfit === 'function') window.updateMultiProfit();
+    if (typeof window.buildUrl === 'function') window.buildUrl();
+  }
+
+  function wrapSaveButton(id) {
+    const button = document.getElementById(id);
+    if (!button || button.dataset.cwResetAfterSave === '1') return;
+    const original = button.onclick;
+    if (typeof original !== 'function') return;
+    button.dataset.cwResetAfterSave = '1';
+    button.onclick = function (event) {
+      const result = original.call(this, event);
+      resetScanAfterSave();
+      return result;
+    };
+  }
+
+  function installSaveResetHandlers() {
+    wrapSaveButton('saveBtn');
+    wrapSaveButton('saveMultiBtn');
+  }
+
   window.cwNormalizeCardNumber = normalizeCardNumber;
   window.cwNormalizeSearchNumber = normalizeSearchNumber;
   window.cwInstallNumberFixes = installNumberFixes;
+  window.cwResetScanAfterSave = resetScanAfterSave;
 
   loadScript(BASE_LOADER)
     .then(() => {
@@ -112,9 +191,15 @@
     })
     .then(() => {
       installNumberFixes();
+      installSaveResetHandlers();
       setTimeout(installNumberFixes, 500);
       setTimeout(installNumberFixes, 1500);
-      const observer = new MutationObserver(() => setTimeout(installNumberFixes, 40));
+      setTimeout(installSaveResetHandlers, 500);
+      setTimeout(installSaveResetHandlers, 1500);
+      const observer = new MutationObserver(() => {
+        setTimeout(installNumberFixes, 40);
+        setTimeout(installSaveResetHandlers, 40);
+      });
       observer.observe(document.documentElement, { childList: true, subtree: true });
       nudgeLoadHandlers();
     })
