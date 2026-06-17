@@ -1,7 +1,8 @@
-// Bootstrap loader: keeps the existing Pokemon DB enhancements and then adds the Cardmarket helper UI.
+// Bootstrap loader: keeps the existing Pokemon DB enhancements and then adds the UI helper scripts.
 (function () {
   const BASE_LOADER = '/api/loader-base';
   const HELPER = 'cardmarket-helper.js';
+  const NUMBER_FIX = 'card-number-fix.js';
 
   function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -25,6 +26,7 @@
       nudgeLoadHandlers();
       return loadScript(HELPER);
     })
+    .then(() => loadScript(NUMBER_FIX))
     .then(nudgeLoadHandlers)
     .catch((err) => {
       const status = document.getElementById('nameHint') || document.getElementById('scanStatus');
