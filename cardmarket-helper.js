@@ -15,6 +15,8 @@
     { value: 'V4', label: 'V4' }
   ];
 
+  const CROP_SIZE_KEY = 'cw_crop_size';
+
   function padNumber(value) {
     const raw = String(value || '').trim().toUpperCase();
     if (!raw) return '';
@@ -44,7 +46,17 @@
       .cwVariantBtn.active{background:linear-gradient(135deg,#7c3cff,#246bff);border-color:rgba(255,255,255,.3)}
       .cwVariantActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
       .cwVariantHint{font-size:13px;color:#a8b3c6;line-height:1.35}
-      @media(max-width:520px){.cwVariantGrid{grid-template-columns:repeat(3,minmax(0,1fr))}.cwVariantActions{grid-template-columns:1fr}}
+      .cwCropSizeBox input[type=range]{accent-color:#7c3cff;width:100%}
+      .cwCropSizeBox .cwRangeRow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+      .cropGrid{grid-template-columns:repeat(auto-fit,minmax(var(--cw-crop-size,150px),1fr))!important}
+      .cropCard img{height:calc(var(--cw-crop-size,150px) * 1.38);object-fit:cover}
+      #multiResults .preview .thumb{width:var(--cw-result-thumb-width,110px);height:var(--cw-result-thumb-height,145px)}
+      .matchBox{max-height:430px;overflow-y:auto;overscroll-behavior:contain;align-content:start}
+      .matchBox>b{position:sticky;top:0;z-index:1;background:linear-gradient(180deg,rgba(8,18,33,.98),rgba(8,18,33,.92));padding:4px 0 8px}
+      .matchBox::-webkit-scrollbar{width:10px}
+      .matchBox::-webkit-scrollbar-track{background:#071426;border-radius:999px}
+      .matchBox::-webkit-scrollbar-thumb{background:#304663;border-radius:999px}
+      @media(max-width:520px){.cwVariantGrid{grid-template-columns:repeat(3,minmax(0,1fr))}.cwVariantActions{grid-template-columns:1fr}.matchBox{max-height:360px}}
     `;
     document.head.appendChild(style);
   }
@@ -55,6 +67,41 @@
       const icon = button.querySelector('.navIcon');
       if (icon && ICONS[key]) icon.innerHTML = ICONS[key];
     });
+  }
+
+  function clampCropSize(value) {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed)) return 150;
+    return Math.max(110, Math.min(280, parsed));
+  }
+
+  function applyCropSize(value) {
+    const size = clampCropSize(value);
+    document.documentElement.style.setProperty('--cw-crop-size', `${size}px`);
+    document.documentElement.style.setProperty('--cw-result-thumb-width', `${Math.round(size * 0.72)}px`);
+    document.documentElement.style.setProperty('--cw-result-thumb-height', `${Math.round(size * 0.96)}px`);
+    const input = document.getElementById('cwCropSize');
+    const label = document.getElementById('cwCropSizeLabel');
+    if (input) input.value = String(size);
+    if (label) label.textContent = `${size}px`;
+    try { localStorage.setItem(CROP_SIZE_KEY, String(size)); } catch {}
+  }
+
+  function ensureCropSizeControl() {
+    const layout = document.getElementById('cropLayout');
+    if (!layout || document.getElementById('cwCropSizeBox')) return;
+    const saved = clampCropSize(localStorage.getItem(CROP_SIZE_KEY) || 150);
+    const box = document.createElement('div');
+    box.id = 'cwCropSizeBox';
+    box.className = 'cwVariantBox cwCropSizeBox';
+    box.innerHTML = `
+      <div class="cwVariantHead"><span>Crop-Größe</span><span id="cwCropSizeLabel">${saved}px</span></div>
+      <div class="cwRangeRow"><input id="cwCropSize" type="range" min="110" max="280" step="10" value="${saved}"><span class="cwVariantHint">Vorschau</span></div>
+      <div class="cwVariantHint">Vergrößert die Crop-Kacheln und die Crop-Bilder in den Multi-Ergebnissen.</div>
+    `;
+    layout.parentNode.insertBefore(box, layout.nextSibling);
+    box.querySelector('#cwCropSize').addEventListener('input', (event) => applyCropSize(event.target.value));
+    applyCropSize(saved);
   }
 
   function selectedSingleVersion() {
@@ -208,6 +255,8 @@
   function install() {
     addStyle();
     installIcons();
+    ensureCropSizeControl();
+    applyCropSize(localStorage.getItem(CROP_SIZE_KEY) || 150);
     ensureSingleVariants();
     enhanceMultiCards();
     const multi = document.getElementById('multiResults');
