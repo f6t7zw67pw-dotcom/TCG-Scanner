@@ -44,7 +44,9 @@ export default async function handler(req, res) {
 
     function padShortNumber(value) {
       const raw = String(value || '').toUpperCase().split('/')[0].replace(/\s+/g, '').trim();
-      return /^\d{1,2}$/.test(raw) ? raw.padStart(3, '0') : raw;
+      if (!/^\d+$/.test(raw)) return raw;
+      const stripped = raw.replace(/^0+(?=\d)/, '') || '0';
+      return stripped.length <= 2 ? stripped.padStart(3, '0') : stripped;
     }
 
     function cleanNumber(value) {
