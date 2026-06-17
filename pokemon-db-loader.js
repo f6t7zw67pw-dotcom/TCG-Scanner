@@ -3,6 +3,8 @@
 (function () {
   const STORAGE_KEY = 'cw_pokemon';
   const RELOAD_KEY = 'cw_pokemon_full_db_reload_done';
+  const COLLECTIONS_KEY = 'cw_collections_v2';
+  const LEGACY_COLLECTION_KEY = 'cw_collection';
 
   function mergePokemonDb(existing, incoming) {
     return { ...(existing || {}), ...(incoming || {}) };
@@ -16,6 +18,33 @@
 
   function cardField(cardEl, key) {
     return cardEl.querySelector(`input[data-k="${key}"],select[data-k="${key}"]`);
+  }
+
+  function padCardNumber(value) {
+    const raw = String(value || '').trim().toUpperCase();
+    if (!raw) return '';
+    const parts = raw.split('/');
+    const left = parts[0].replace(/\s+/g, '');
+    const padded = /^\d{1,2}$/.test(left) ? left.padStart(3, '0') : left;
+    if (parts.length <= 1) return padded;
+    return `${padded}/${parts.slice(1).join('/').replace(/\s+/g, '')}`;
+  }
+
+  function searchNumberFrom(value) {
+    return padCardNumber(String(value || '').split('/')[0]);
+  }
+
+  function cleanPrice(value) {
+    const match = String(value || '').replace(/EUR/ig, '').replace(/€/g, '').match(/\d+(?:[,.]\d{1,2})?/);
+    return match ? match[0].replace('.', ',') : '';
+  }
+
+  function priceNumber(value) {
+    return parseFloat(cleanPrice(value).replace(',', '.')) || 0;
+  }
+
+  function money(value) {
+    return `${value.toFixed(2).replace('.', ',')} Euro`;
   }
 
   function normalizeCondition(value) {
@@ -54,21 +83,24 @@
   }
 
   function readCardFromDom(cardEl) {
+    const fullNumber = padCardNumber(cardField(cardEl, 'fullNumber')?.value || '');
     return {
       originalName: cardField(cardEl, 'originalName')?.value || '',
       cardmarketName: cardField(cardEl, 'cardmarketName')?.value || '',
-      fullNumber: cardField(cardEl, 'fullNumber')?.value || '',
-      searchNumber: cardField(cardEl, 'fullNumber')?.value || '',
+      fullNumber,
+      searchNumber: searchNumberFrom(fullNumber),
       setCode: cardField(cardEl, 'setCode')?.value || '',
       setName: cardField(cardEl, 'setName')?.value || '',
       cardVersion: cardField(cardEl, 'cardVersion')?.value || '',
-      condition: cardField(cardEl, 'condition')?.value || 'Near Mint'
+      condition: cardField(cardEl, 'condition')?.value || 'Near Mint',
+      price: cleanPrice(cardField(cardEl, 'cmPrice')?.value || '')
     };
   }
 
   function buildMultiUrl(card) {
     if (typeof window.buildCMUrlFrom !== 'function') return '';
-    const url = window.buildCMUrlFrom(card);
+    const fixed = { ...card, fullNumber: padCardNumber(card.fullNumber || card.number || ''), searchNumber: searchNumberFrom(card.searchNumber || card.fullNumber || card.number || '') };
+    const url = window.buildCMUrlFrom(fixed);
     if (!url) return '';
     const minCondition = conditionParam(card.condition);
     if (!minCondition) return url;
@@ -77,6 +109,8 @@
   }
 
   function refreshCardUrl(cardEl) {
+    const fullNumberInput = cardField(cardEl, 'fullNumber');
+    if (fullNumberInput) fullNumberInput.value = padCardNumber(fullNumberInput.value);
     const urlBox = cardEl.querySelector('.url');
     if (!urlBox) return '';
     const url = buildMultiUrl(readCardFromDom(cardEl));
@@ -115,6 +149,271 @@
     return out.toDataURL('image/jpeg', 0.92);
   }
 
+  function readJson(key, fallback) {
+    try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch { return fallback; }
+  }
+
+  function baseCollectionStore() {
+    return { selectedId: 'default', collections: [{ id: 'default', name: 'Hauptsammlung', cards: [] }] };
+  }
+
+  function normalizeStore(store) {
+    const next = store && Array.isArray(store.collections) ? store : baseCollectionStore();
+    if (!next.collections.length) next.collections.push({ id: 'default', name: 'Hauptsammlung', cards: [] });
+    next.collections = next.collections.map((c, index) => ({
+      id: c.id || `collection-${Date.now()}-${index}`,
+      name: c.name || 'Sammlung',
+      cards: Array.isArray(c.cards) ? c.cards : []
+    }));
+    if (!next.collections.some((c) => c.id === next.selectedId)) next.selectedId = next.collections[0].id;
+    return next;
+  }
+
+  function getCollectionStore() {
+    let store = normalizeStore(readJson(COLLECTIONS_KEY, null));
+    const legacy = readJson(LEGACY_COLLECTION_KEY, []);
+    if (!readJson(COLLECTIONS_KEY, null) && Array.isArray(legacy) && legacy.length) {
+      store.collections[0].cards = legacy;
+      saveCollectionStore(store);
+    }
+    return store;
+  }
+
+  function saveCollectionStore(store) {
+    const normalized = normalizeStore(store);
+    localStorage.setItem(COLLECTIONS_KEY, JSON.stringify(normalized));
+    syncLegacyCollection(normalized);
+    return normalized;
+  }
+
+  function selectedCollection(store = getCollectionStore()) {
+    return store.collections.find((c) => c.id === store.selectedId) || store.collections[0];
+  }
+
+  function syncLegacyCollection(store = getCollectionStore()) {
+    const selected = selectedCollection(store);
+    localStorage.setItem(LEGACY_COLLECTION_KEY, JSON.stringify(selected.cards || []));
+  }
+
+  function addCardsToSelected(cards) {
+    const store = getCollectionStore();
+    const selected = selectedCollection(store);
+    selected.cards = [...cards, ...(selected.cards || [])];
+    saveCollectionStore(store);
+    renderCollectionTools();
+    renderEnhancedCollection();
+  }
+
+  function imageFromSingleDom() {
+    return document.querySelector('#imageBox img.thumb')?.src || readJson('cw_last_image', '') || '';
+  }
+
+  function readSingleCard() {
+    const fullNumber = padCardNumber(document.getElementById('fullNumber')?.value || '');
+    const url = typeof window.buildUrl === 'function' ? window.buildUrl() : (document.getElementById('cmUrl')?.textContent || '');
+    return {
+      id: Date.now(),
+      originalName: document.getElementById('originalName')?.value || '',
+      cardmarketName: document.getElementById('cardmarketName')?.value || '',
+      fullNumber,
+      searchNumber: searchNumberFrom(fullNumber),
+      setCode: document.getElementById('setCode')?.value || '',
+      setName: document.getElementById('setName')?.value || '',
+      price: cleanPrice(document.getElementById('sellPrice')?.value || ''),
+      ebayPrice: cleanPrice(document.getElementById('ebayPrice')?.value || ''),
+      shipping: cleanPrice(document.getElementById('shipping')?.value || ''),
+      condition: document.getElementById('condition')?.value || 'Near Mint',
+      cardVersion: document.querySelector('#typeChips .chip.active')?.dataset.ver || '',
+      lotName: '',
+      image: imageFromSingleDom(),
+      cardmarketUrl: appendConditionToUrl(url, document.getElementById('condition')?.value || 'Near Mint'),
+      createdAt: new Date().toISOString()
+    };
+  }
+
+  function appendConditionToUrl(url, condition) {
+    if (!url || url.includes('Noch nicht genug')) return '';
+    const minCondition = conditionParam(condition);
+    if (!minCondition || url.includes('minCondition=')) return url;
+    return `${url}${url.includes('?') ? '&' : '?'}minCondition=${encodeURIComponent(minCondition)}`;
+  }
+
+  function readMultiCard(cardEl, index) {
+    const card = readCardFromDom(cardEl);
+    return {
+      id: Date.now() + index,
+      ...card,
+      price: cleanPrice(card.price || ''),
+      ebayPrice: cleanPrice(document.getElementById('lotEbayPrice')?.value || ''),
+      shipping: cleanPrice(document.getElementById('lotShipping')?.value || ''),
+      lotName: document.getElementById('lotName')?.value || '',
+      image: cardEl.querySelector('img.thumb')?.src || '',
+      cardmarketUrl: refreshCardUrl(cardEl),
+      createdAt: new Date().toISOString(),
+      multiLot: true
+    };
+  }
+
+  function saveSingleEnhanced() {
+    const card = readSingleCard();
+    if (!card.originalName && !card.cardmarketName && !card.fullNumber) {
+      if (typeof window.toast === 'function') window.toast('Keine Karte zum Speichern');
+      return;
+    }
+    addCardsToSelected([card]);
+    if (typeof window.toast === 'function') window.toast('Karte gespeichert');
+  }
+
+  function saveMultiEnhanced() {
+    const cards = [];
+    document.querySelectorAll('#multiResults .resultCard').forEach((cardEl, index) => {
+      const selected = cardEl.querySelector('.sel');
+      if (selected && !selected.checked) return;
+      cards.push(readMultiCard(cardEl, index));
+    });
+    if (!cards.length) {
+      if (typeof window.toast === 'function') window.toast('Keine Multi-Karte ausgewaehlt');
+      return;
+    }
+    addCardsToSelected(cards);
+    if (typeof window.toast === 'function') window.toast(`${cards.length} Karten gespeichert`);
+  }
+
+  function ensureScannerCollectionPicker() {
+    if (document.getElementById('cwCollectionPicker')) return;
+    const anchor = document.getElementById('scanStatus');
+    if (!anchor) return;
+    const picker = document.createElement('div');
+    picker.id = 'cwCollectionPicker';
+    picker.className = 'card';
+    picker.style.marginTop = '14px';
+    picker.innerHTML = `<h2>Sammlung fuer Scan</h2><label>Speichern in</label><select id="cwScanCollection"></select><div class="row"><div><label>Neue Sammlung</label><input id="cwNewCollectionName" placeholder="z. B. Binder 1"></div><div><label>&nbsp;</label><button class="btn ghost" id="cwCreateCollection" type="button">Erstellen</button></div></div><div class="hint" id="cwCollectionHint"></div>`;
+    anchor.parentNode.insertBefore(picker, anchor.nextSibling);
+    document.getElementById('cwScanCollection').onchange = (e) => selectCollection(e.target.value);
+    document.getElementById('cwCreateCollection').onclick = createCollectionFromInput;
+    renderCollectionTools();
+  }
+
+  function ensureCollectionFilterUi() {
+    const section = document.getElementById('collection');
+    if (!section || document.getElementById('cwCollectionFilters')) return;
+    const search = document.getElementById('search');
+    const box = document.createElement('div');
+    box.id = 'cwCollectionFilters';
+    box.innerHTML = `<label>Sammlung</label><select id="cwViewCollection"></select><div class="row"><div><label>SetCode Filter</label><input id="cwFilterSet" placeholder="z. B. SV8A"></div><div><label>Zustand</label><select id="cwFilterCondition"><option value="">Alle</option><option>Near Mint</option><option>Excellent</option><option>Good</option><option>Played</option><option>Poor</option></select></div></div><div class="row"><div><label>Kartentyp</label><select id="cwFilterType"><option value="">Alle</option><option value="Normal">Normal</option><option value="V1">EX / V</option><option value="V2">IR / Full Art</option><option value="V3">SIR</option><option value="V4">Gold / Secret</option></select></div><div><label>Preis ab</label><input id="cwFilterMin" inputmode="decimal" placeholder="0,00"></div></div><div class="row"><div><label>Preis bis</label><input id="cwFilterMax" inputmode="decimal" placeholder="999,00"></div><div><label>&nbsp;</label><button class="btn ghost" id="cwResetFilters" type="button">Filter zuruecksetzen</button></div></div><div class="ok" id="cwCollectionValue">Wert: 0,00 Euro</div>`;
+    if (search) search.parentNode.insertBefore(box, search.nextSibling);
+    ['cwViewCollection', 'cwFilterSet', 'cwFilterCondition', 'cwFilterType', 'cwFilterMin', 'cwFilterMax'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.oninput = el.onchange = () => {
+        if (id === 'cwViewCollection') selectCollection(el.value);
+        renderEnhancedCollection();
+      };
+    });
+    const reset = document.getElementById('cwResetFilters');
+    if (reset) reset.onclick = () => {
+      ['cwFilterSet', 'cwFilterMin', 'cwFilterMax'].forEach((id) => { const el = document.getElementById(id); if (el) el.value = ''; });
+      ['cwFilterCondition', 'cwFilterType'].forEach((id) => { const el = document.getElementById(id); if (el) el.value = ''; });
+      renderEnhancedCollection();
+    };
+  }
+
+  function renderCollectionTools() {
+    const store = getCollectionStore();
+    const selected = selectedCollection(store);
+    ['cwScanCollection', 'cwViewCollection'].forEach((id) => {
+      const select = document.getElementById(id);
+      if (!select) return;
+      const current = select.value || store.selectedId;
+      select.innerHTML = store.collections.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join('');
+      select.value = store.collections.some((c) => c.id === current) ? current : store.selectedId;
+    });
+    const hint = document.getElementById('cwCollectionHint');
+    if (hint) hint.textContent = `${selected.name}: ${(selected.cards || []).length} Karten, Wert ${money(totalValue(selected.cards || []))}`;
+  }
+
+  function createCollectionFromInput() {
+    const input = document.getElementById('cwNewCollectionName');
+    const name = (input?.value || '').trim();
+    if (!name) return;
+    const store = getCollectionStore();
+    const id = `collection-${Date.now()}`;
+    store.collections.push({ id, name, cards: [] });
+    store.selectedId = id;
+    if (input) input.value = '';
+    saveCollectionStore(store);
+    renderCollectionTools();
+    renderEnhancedCollection();
+    if (typeof window.toast === 'function') window.toast('Sammlung erstellt');
+  }
+
+  function selectCollection(id) {
+    const store = getCollectionStore();
+    if (store.collections.some((c) => c.id === id)) store.selectedId = id;
+    saveCollectionStore(store);
+    renderCollectionTools();
+    renderEnhancedCollection();
+  }
+
+  function totalValue(cards) {
+    return cards.reduce((sum, card) => sum + priceNumber(card.price || card.cmPrice), 0);
+  }
+
+  function filteredCards(cards) {
+    const search = (document.getElementById('search')?.value || '').toLowerCase();
+    const set = (document.getElementById('cwFilterSet')?.value || '').trim().toLowerCase();
+    const condition = document.getElementById('cwFilterCondition')?.value || '';
+    const type = document.getElementById('cwFilterType')?.value || '';
+    const minRaw = document.getElementById('cwFilterMin')?.value || '';
+    const maxRaw = document.getElementById('cwFilterMax')?.value || '';
+    const min = minRaw ? priceNumber(minRaw) : null;
+    const max = maxRaw ? priceNumber(maxRaw) : null;
+    return cards.filter((card) => {
+      const text = JSON.stringify(card).toLowerCase();
+      const price = priceNumber(card.price || card.cmPrice);
+      if (search && !text.includes(search)) return false;
+      if (set && !String(card.setCode || '').toLowerCase().includes(set)) return false;
+      if (condition && normalizeCondition(card.condition) !== condition) return false;
+      if (type) {
+        const label = type === 'Normal' ? '' : type;
+        if ((card.cardVersion || '') !== label) return false;
+      }
+      if (min !== null && price < min) return false;
+      if (max !== null && price > max) return false;
+      return true;
+    });
+  }
+
+  function renderEnhancedCollection() {
+    const list = document.getElementById('collectionList');
+    if (!list) return;
+    const store = getCollectionStore();
+    const selected = selectedCollection(store);
+    const cards = filteredCards(selected.cards || []);
+    const valueBox = document.getElementById('cwCollectionValue');
+    if (valueBox) valueBox.textContent = `${selected.name}: ${cards.length} Karten angezeigt · Gesamtwert ${money(totalValue(cards))}`;
+    list.innerHTML = '';
+    if (!cards.length) {
+      list.innerHTML = '<div class="hint">Keine Karten fuer diese Auswahl.</div>';
+      return;
+    }
+    cards.forEach((card) => {
+      const item = document.createElement('div');
+      item.className = 'item';
+      const title = card.cardmarketName || card.originalName || 'Unbenannt';
+      const price = cleanPrice(card.price || card.cmPrice);
+      item.innerHTML = `<div class="preview">${card.image ? `<img class="thumb" src="${escapeAttr(card.image)}">` : ''}<div><b>${escapeHtml(title)}</b><div class="small">${escapeHtml(card.fullNumber || '')} · ${escapeHtml(card.setCode || '')} ${escapeHtml(card.setName || '')}</div><div class="small">${escapeHtml(normalizeCondition(card.condition || ''))} · ${escapeHtml(cardVersionLabel(card.cardVersion || ''))} · ${price ? `${escapeHtml(price)} Euro` : 'kein Preis'}</div>${card.lotName ? `<div class="small">${escapeHtml(card.lotName)}</div>` : ''}${card.cardmarketUrl ? `<a href="${escapeAttr(card.cardmarketUrl)}" target="_blank">Cardmarket oeffnen</a>` : ''}</div></div>`;
+      list.appendChild(item);
+    });
+  }
+
+  function escapeHtml(value) {
+    return String(value || '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+  }
+
+  function escapeAttr(value) {
+    return escapeHtml(value).replace(/'/g, '&#39;');
+  }
+
   function installAppPatches() {
     window.fixSetCode = function (code, setName = '') {
       const c = String(code || '').trim().toUpperCase();
@@ -126,6 +425,21 @@
       if (n.includes('black')) return 'BLK';
       return c;
     };
+
+    window.normalizeNumber = function (value) {
+      const full = padCardNumber(value);
+      return { full, search: searchNumberFrom(full) };
+    };
+
+    if (typeof window.buildCMUrlFrom === 'function' && !window.buildCMUrlFrom.__cwPadded) {
+      const originalBuild = window.buildCMUrlFrom;
+      const wrapped = function (card) {
+        const fullNumber = padCardNumber(card?.fullNumber || card?.number || '');
+        return originalBuild({ ...(card || {}), fullNumber, searchNumber: searchNumberFrom(card?.searchNumber || fullNumber) });
+      };
+      wrapped.__cwPadded = true;
+      window.buildCMUrlFrom = wrapped;
+    }
 
     window.liveSet = function () {
       const setCodeInput = document.getElementById('setCode');
@@ -140,8 +454,28 @@
       if (typeof window.buildUrl === 'function') window.buildUrl();
     };
 
+    window.liveNumber = function () {
+      const fullInput = document.getElementById('fullNumber');
+      const searchInput = document.getElementById('searchNumber');
+      if (!fullInput || !searchInput) return;
+      const full = padCardNumber(fullInput.value);
+      searchInput.value = searchNumberFrom(full);
+      if (typeof window.buildUrl === 'function') window.buildUrl();
+    };
+
     const setCodeInput = document.getElementById('setCode');
     if (setCodeInput) setCodeInput.oninput = window.liveSet;
+    const fullNumberInput = document.getElementById('fullNumber');
+    if (fullNumberInput) {
+      fullNumberInput.oninput = window.liveNumber;
+      fullNumberInput.onchange = () => { fullNumberInput.value = padCardNumber(fullNumberInput.value); window.liveNumber(); };
+      fullNumberInput.onblur = fullNumberInput.onchange;
+    }
+    const searchNumberInput = document.getElementById('searchNumber');
+    if (searchNumberInput) {
+      searchNumberInput.onchange = () => { searchNumberInput.value = searchNumberFrom(searchNumberInput.value); if (typeof window.buildUrl === 'function') window.buildUrl(); };
+      searchNumberInput.onblur = searchNumberInput.onchange;
+    }
 
     window.searchTcgCards = async function (scan) {
       const rawName = scan.originalName || scan.cardmarketName || scan.name || '';
@@ -158,7 +492,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: searchName,
-          number: scan.fullNumber || scan.searchNumber || scan.number || '',
+          number: padCardNumber(scan.fullNumber || scan.searchNumber || scan.number || ''),
           setCode: scan.setCode || ''
         })
       });
@@ -174,6 +508,22 @@
       enhanced.__enhanced = true;
       window.cropDataURL = enhanced;
     }
+
+    const saveBtn = document.getElementById('saveBtn');
+    if (saveBtn) saveBtn.onclick = saveSingleEnhanced;
+    const saveMultiBtn = document.getElementById('saveMultiBtn');
+    if (saveMultiBtn) saveMultiBtn.onclick = saveMultiEnhanced;
+    const search = document.getElementById('search');
+    if (search) search.oninput = renderEnhancedCollection;
+    const clearAll = document.getElementById('clearAll');
+    if (clearAll) clearAll.onclick = () => {
+      if (!confirm('Aktuelle Sammlung wirklich loeschen?')) return;
+      const store = getCollectionStore();
+      selectedCollection(store).cards = [];
+      saveCollectionStore(store);
+      renderCollectionTools();
+      renderEnhancedCollection();
+    };
   }
 
   async function callCardSearch(scan) {
@@ -183,7 +533,7 @@
   function applyMatchToCard(cardEl, match) {
     triggerInput(cardField(cardEl, 'originalName'), match.name || '');
     triggerInput(cardField(cardEl, 'cardmarketName'), match.cardmarketName || match.name || '');
-    triggerInput(cardField(cardEl, 'fullNumber'), match.number || '');
+    triggerInput(cardField(cardEl, 'fullNumber'), padCardNumber(match.number || ''));
     triggerInput(cardField(cardEl, 'setCode'), match.setCode || '');
     triggerInput(cardField(cardEl, 'setName'), match.setName || '');
     triggerInput(cardField(cardEl, 'cardVersion'), inferCardVersion(match));
@@ -251,6 +601,10 @@
     }
 
     cardEl.querySelectorAll('input[data-k],select[data-k]').forEach((field) => {
+      if (field.dataset.k === 'fullNumber') {
+        field.addEventListener('change', () => { field.value = padCardNumber(field.value); refreshCardUrl(cardEl); });
+        field.addEventListener('blur', () => { field.value = padCardNumber(field.value); refreshCardUrl(cardEl); });
+      }
       field.addEventListener('input', () => refreshCardUrl(cardEl));
       field.addEventListener('change', () => refreshCardUrl(cardEl));
     });
@@ -309,7 +663,7 @@
         const found = (data.cards || [])[0] || {};
         triggerInput(cardField(cardEl, 'originalName'), found.originalName || found.name || '');
         triggerInput(cardField(cardEl, 'cardmarketName'), found.cardmarketName || (typeof window.buildCMName === 'function' ? window.buildCMName(found.originalName || found.name || '') : ''));
-        triggerInput(cardField(cardEl, 'fullNumber'), found.fullNumber || found.number || '');
+        triggerInput(cardField(cardEl, 'fullNumber'), padCardNumber(found.fullNumber || found.number || ''));
         triggerInput(cardField(cardEl, 'setCode'), window.fixSetCode(found.setCode || '', found.setName || ''));
         triggerInput(cardField(cardEl, 'setName'), found.setName || '');
         triggerInput(cardField(cardEl, 'cardVersion'), inferCardVersion(found));
@@ -349,6 +703,35 @@
     setTimeout(enhanceVisibleMultiCards, 120);
   }
 
+  function installCollectionEnhancements() {
+    ensureScannerCollectionPicker();
+    ensureCollectionFilterUi();
+    renderCollectionTools();
+    renderEnhancedCollection();
+    document.addEventListener('click', (event) => {
+      if (event.target.closest('.navBtn')) setTimeout(() => { renderCollectionTools(); renderEnhancedCollection(); }, 120);
+    });
+    const exportJson = document.getElementById('exportJson');
+    if (exportJson) exportJson.onclick = () => {
+      const store = getCollectionStore();
+      const selected = selectedCollection(store);
+      downloadFile(`${selected.name || 'sammlung'}.json`, JSON.stringify(selected.cards || [], null, 2), 'application/json');
+    };
+    const exportCsv = document.getElementById('exportCsv');
+    if (exportCsv) exportCsv.onclick = () => {
+      const selected = selectedCollection(getCollectionStore());
+      const rows = (selected.cards || []).map((card) => [card.originalName, card.cardmarketName, card.fullNumber, card.setCode, card.setName, card.condition, card.cardVersion, card.price].map((v) => String(v || '').replace(/;/g, ',')).join(';'));
+      downloadFile(`${selected.name || 'sammlung'}.csv`, rows.join('\n'), 'text/csv');
+    };
+  }
+
+  function downloadFile(name, content, type) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([content], { type }));
+    a.download = name;
+    a.click();
+  }
+
   async function loadFullPokemonDb() {
     const response = await fetch('/api/pokemon-db');
     const data = await response.json();
@@ -374,6 +757,7 @@
       const result = await loadFullPokemonDb();
       installAppPatches();
       installMultiEnhancements();
+      installCollectionEnhancements();
       if (status) status.textContent = `Pokemon-DB geladen: ${result.count} Namen.`;
 
       if (!result.hadFullDb && sessionStorage.getItem(RELOAD_KEY) !== '1') {
@@ -381,7 +765,9 @@
         window.location.reload();
       }
     } catch (err) {
+      installAppPatches();
       installMultiEnhancements();
+      installCollectionEnhancements();
       if (status) status.textContent = `Pokemon-DB konnte nicht geladen werden: ${err.message}`;
     }
   });
