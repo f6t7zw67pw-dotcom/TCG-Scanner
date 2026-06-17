@@ -42,8 +42,13 @@ export default async function handler(req, res) {
         .trim();
     }
 
+    function padShortNumber(value) {
+      const raw = String(value || '').toUpperCase().split('/')[0].replace(/\s+/g, '').trim();
+      return /^\d{1,2}$/.test(raw) ? raw.padStart(3, '0') : raw;
+    }
+
     function cleanNumber(value) {
-      return String(value || '').toUpperCase().split('/')[0].replace(/\s+/g, '').trim();
+      return padShortNumber(value);
     }
 
     function cleanSetCode(value) {
