@@ -1,4 +1,4 @@
-const SCRIPT = `// Keeps card numbers usable while typing, then normalizes them for search and Cardmarket links.
+const SCRIPT = String.raw`// Keeps card numbers usable while typing, then normalizes them for search and Cardmarket links.
 (function () {
   function normalizeNumberPart(value) {
     const raw = String(value || '').toUpperCase().replace(/\s+/g, '').trim();
