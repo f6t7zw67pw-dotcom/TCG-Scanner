@@ -1,6 +1,6 @@
 // Bootstrap loader: keeps the existing Pokemon DB enhancements and then adds the Cardmarket helper UI.
 (function () {
-  const BASE_LOADER = 'https://cdn.jsdelivr.net/gh/f6t7zw67pw-dotcom/TCG-Scanner@4daa6f040f7c758934c7474ebe90b93528480f9b/pokemon-db-loader.js';
+  const BASE_LOADER = '/api/loader-base';
   const HELPER = 'cardmarket-helper.js';
 
   function loadScript(src) {
