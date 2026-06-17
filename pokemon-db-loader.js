@@ -168,6 +168,10 @@
     if (typeof original !== 'function') return;
     button.dataset.cwResetAfterSave = '1';
     button.onclick = function (event) {
+      if (id === 'saveMultiBtn' && !document.querySelector('#multiResults .resultCard')) {
+        if (typeof window.toast === 'function') window.toast('Keine Multi-Karten zum Speichern.');
+        return undefined;
+      }
       const result = original.call(this, event);
       resetScanAfterSave();
       return result;
