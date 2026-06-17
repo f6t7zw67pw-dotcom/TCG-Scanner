@@ -2,7 +2,7 @@
 (function () {
   const BASE_LOADER = '/api/loader-base';
   const HELPER = 'cardmarket-helper.js';
-  const NUMBER_FIX = 'card-number-fix.js';
+  const NUMBER_FIX = '/api/number-fix';
 
   function loadScript(src) {
     return new Promise((resolve, reject) => {
