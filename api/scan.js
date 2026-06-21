@@ -1,12 +1,59 @@
+const scanBuckets = globalThis.__cwScanBuckets || new Map();
+globalThis.__cwScanBuckets = scanBuckets;
+
+function clientId(req) {
+  return String(req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown')
+    .split(',')[0]
+    .trim();
+}
+
+function tokenFrom(req) {
+  return String(req.headers['x-app-token'] || req.headers.authorization?.replace(/^Bearer\s+/i, '') || '').trim();
+}
+
+function hasAccess(req) {
+  const expected = String(process.env.APP_ACCESS_TOKEN || '').trim();
+  return !expected || tokenFrom(req) === expected;
+}
+
+function checkRateLimit(req) {
+  const max = Math.max(1, Number(process.env.SCAN_MAX_PER_HOUR || 80));
+  const now = Date.now();
+  const windowMs = 60 * 60 * 1000;
+  const key = clientId(req);
+  const bucket = scanBuckets.get(key) || { start: now, count: 0 };
+  if (now - bucket.start > windowMs) {
+    bucket.start = now;
+    bucket.count = 0;
+  }
+  bucket.count += 1;
+  scanBuckets.set(key, bucket);
+  return bucket.count <= max;
+}
+
+function approxDataUrlBytes(value) {
+  const base64 = String(value || '').split(',')[1] || '';
+  return Math.floor((base64.length * 3) / 4);
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Nur POST erlaubt' });
+  if (!hasAccess(req)) return res.status(401).json({ ok: false, error: 'KI-Scan ist geschuetzt. Cloud Token in der App eingeben.' });
+  if (!checkRateLimit(req)) return res.status(429).json({ ok: false, error: 'Scan-Limit erreicht. Bitte spaeter erneut versuchen.' });
+
   try {
     if (!process.env.OPENAI_API_KEY) return res.status(400).json({ ok: false, error: 'OPENAI_API_KEY fehlt in Vercel.' });
     const body = req.body || {};
     const mode = body.mode === 'multi' ? 'multi' : 'single';
     const image = body.image;
-    const extraText = body.extraText || '';
+    const extraText = String(body.extraText || '').slice(0, 1200);
     if (!image || typeof image !== 'string') return res.status(400).json({ ok: false, error: 'Kein Bild empfangen.' });
+
+    const maxImageBytes = Math.max(250000, Number(process.env.SCAN_MAX_IMAGE_BYTES || 4500000));
+    if (approxDataUrlBytes(image) > maxImageBytes) {
+      return res.status(413).json({ ok: false, error: 'Bild ist zu gross. Bitte kleiner oder staerker komprimiert hochladen.' });
+    }
+
     const model = mode === 'multi' ? (process.env.OPENAI_MULTI_MODEL || 'gpt-4o') : (process.env.OPENAI_SINGLE_MODEL || 'gpt-4o-mini');
     const cardSchema = '{"originalName":"","fullNumber":"","searchNumber":"","setCode":"","setName":"","languageGuess":"","languageCode":"","cardType":"","cardVersion":"","condition":"","confidence":0,"warnings":[]}';
     const schema = mode === 'multi'
