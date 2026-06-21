@@ -1,3 +1,5 @@
+import { getSql, hasSessionOrAdmin } from './_auth.js';
+
 const scanBuckets = globalThis.__cwScanBuckets || new Map();
 globalThis.__cwScanBuckets = scanBuckets;
 
@@ -5,15 +7,6 @@ function clientId(req) {
   return String(req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown')
     .split(',')[0]
     .trim();
-}
-
-function tokenFrom(req) {
-  return String(req.headers['x-app-token'] || req.headers.authorization?.replace(/^Bearer\s+/i, '') || '').trim();
-}
-
-function hasAccess(req) {
-  const expected = String(process.env.APP_ACCESS_TOKEN || '').trim();
-  return !expected || tokenFrom(req) === expected;
 }
 
 function checkRateLimit(req) {
@@ -38,7 +31,7 @@ function approxDataUrlBytes(value) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Nur POST erlaubt' });
-  if (!hasAccess(req)) return res.status(401).json({ ok: false, error: 'KI-Scan ist geschuetzt. Cloud Token in der App eingeben.' });
+  if (!(await hasSessionOrAdmin(req, getSql()))) return res.status(401).json({ ok: false, error: 'Bitte anmelden, bevor du KI-Scans startest.' });
   if (!checkRateLimit(req)) return res.status(429).json({ ok: false, error: 'Scan-Limit erreicht. Bitte spaeter erneut versuchen.' });
 
   try {
