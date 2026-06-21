@@ -15,7 +15,10 @@ function tokenFrom(req) {
 
 function requireAccess(req, res) {
   const expected = String(process.env.APP_ACCESS_TOKEN || '').trim();
-  if (!expected) return true;
+  if (!expected) {
+    res.status(503).json({ ok: false, error: 'APP_ACCESS_TOKEN fehlt in Vercel. Cloud-Sync bleibt gesperrt.' });
+    return false;
+  }
   if (tokenFrom(req) === expected) return true;
   res.status(401).json({ ok: false, error: 'Cloud-Zugriff nicht autorisiert.' });
   return false;
