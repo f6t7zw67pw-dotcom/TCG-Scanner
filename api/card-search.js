@@ -1,14 +1,7 @@
+import { getSql, hasSessionOrAdmin } from './_auth.js';
+
 const searchBuckets = globalThis.__cwSearchBuckets || new Map();
 globalThis.__cwSearchBuckets = searchBuckets;
-
-function tokenFrom(req) {
-  return String(req.headers['x-app-token'] || req.headers.authorization?.replace(/^Bearer\s+/i, '') || '').trim();
-}
-
-function hasAccess(req) {
-  const expected = String(process.env.APP_ACCESS_TOKEN || '').trim();
-  return !expected || tokenFrom(req) === expected;
-}
 
 function clientId(req) {
   return String(req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown')
@@ -33,7 +26,7 @@ function checkRateLimit(req) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Nur POST erlaubt' });
-  if (!hasAccess(req)) return res.status(401).json({ ok: false, error: 'Kartensuche ist geschuetzt. Cloud Token in der App eingeben.' });
+  if (!(await hasSessionOrAdmin(req, getSql()))) return res.status(401).json({ ok: false, error: 'Bitte anmelden, bevor du Karten suchst.' });
   if (!checkRateLimit(req)) return res.status(429).json({ ok: false, error: 'Such-Limit erreicht. Bitte spaeter erneut versuchen.' });
 
   try {
