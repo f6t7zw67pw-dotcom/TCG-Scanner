@@ -1,28 +1,7 @@
-import { neon } from '@neondatabase/serverless';
+import { getSessionUser, getSql, hasAdminToken, requireUser } from './_auth.js';
 
 const DEFAULT_USER = 'default';
 let schemaReady = false;
-
-function getSql() {
-  const url = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL;
-  if (!url) return null;
-  return neon(url);
-}
-
-function tokenFrom(req) {
-  return String(req.headers['x-app-token'] || req.headers.authorization?.replace(/^Bearer\s+/i, '') || '').trim();
-}
-
-function requireAccess(req, res) {
-  const expected = String(process.env.APP_ACCESS_TOKEN || '').trim();
-  if (!expected) {
-    res.status(503).json({ ok: false, error: 'APP_ACCESS_TOKEN fehlt in Vercel. Cloud-Sync bleibt gesperrt.' });
-    return false;
-  }
-  if (tokenFrom(req) === expected) return true;
-  res.status(401).json({ ok: false, error: 'Cloud-Zugriff nicht autorisiert.' });
-  return false;
-}
 
 function stripHeavyFields(card) {
   const next = { ...(card || {}) };
@@ -48,12 +27,19 @@ async function ensureSchema(sql) {
   schemaReady = true;
 }
 
+async function resolveUserId(req, res, sql) {
+  if (hasAdminToken(req)) return String(req.query.user || DEFAULT_USER).slice(0, 80) || DEFAULT_USER;
+  const user = await getSessionUser(req, sql);
+  if (user) return user.id;
+  const required = await requireUser(req, res, sql);
+  return required?.id || '';
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (!['GET', 'PUT', 'POST', 'DELETE'].includes(req.method)) {
     return res.status(405).json({ ok: false, error: 'Methode nicht erlaubt.' });
   }
-  if (!requireAccess(req, res)) return;
 
   const sql = getSql();
   if (!sql) {
@@ -62,7 +48,8 @@ export default async function handler(req, res) {
 
   try {
     await ensureSchema(sql);
-    const userId = String(req.query.user || DEFAULT_USER).slice(0, 80) || DEFAULT_USER;
+    const userId = await resolveUserId(req, res, sql);
+    if (!userId) return;
 
     if (req.method === 'GET') {
       const rows = await sql`
