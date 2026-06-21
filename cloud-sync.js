@@ -1,10 +1,10 @@
-// Session-only cloud sync UI for Card Wizard Pro. Local mode keeps working without Neon.
+// Account-based cloud sync UI for Card Wizard Pro. Uses HttpOnly session cookies after login.
 (function () {
   const AUTO_KEY = 'cw_cloud_auto';
-  const USER_KEY = 'cw_cloud_user';
-  let sessionToken = '';
   let syncing = false;
   let pushTimer = null;
+  let currentUser = null;
+  let setupRequired = false;
 
   function $(id) { return document.getElementById(id); }
   function toast(text) {
@@ -20,7 +20,6 @@
     localStorage.setItem('cw_collection', JSON.stringify(cards || []));
     syncing = false;
   }
-  function userId() { return String(localStorage.getItem(USER_KEY) || 'default').trim() || 'default'; }
   function autoSync() { return localStorage.getItem(AUTO_KEY) === '1'; }
   function status(text, type) {
     const el = $('cwCloudStatus');
@@ -34,22 +33,75 @@
     if (typeof next.cropImage === 'string' && next.cropImage.startsWith('data:image/')) delete next.cropImage;
     return next;
   }
-  async function cloudFetch(path, options) {
-    const headers = { 'Content-Type': 'application/json', ...(options && options.headers ? options.headers : {}) };
-    if (sessionToken) headers['x-app-token'] = sessionToken;
-    const response = await fetch(path, { ...(options || {}), headers });
+  async function apiFetch(path, options) {
+    const response = await fetch(path, {
+      credentials: 'same-origin',
+      ...(options || {}),
+      headers: { 'Content-Type': 'application/json', ...(options && options.headers ? options.headers : {}) }
+    });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok || data.ok === false) throw new Error(data.error || `Cloud Fehler ${response.status}`);
+    if (!response.ok || data.ok === false) throw new Error(data.error || `Fehler ${response.status}`);
     return data;
   }
+  async function refreshAuth() {
+    try {
+      const data = await apiFetch('/api/auth');
+      currentUser = data.user || null;
+      setupRequired = Boolean(data.setupRequired);
+    } catch {
+      currentUser = null;
+    }
+    renderAuthState();
+    return currentUser;
+  }
+  async function signUp() {
+    const username = $('cwAuthUsername')?.value || '';
+    const password = $('cwAuthPassword')?.value || '';
+    const setupToken = $('cwSetupToken')?.value || '';
+    const displayName = username;
+    status('Konto wird erstellt...');
+    const data = await apiFetch('/api/auth', {
+      method: 'POST',
+      headers: setupToken ? { 'x-app-token': setupToken } : {},
+      body: JSON.stringify({ action: 'signup', username, password, displayName })
+    });
+    currentUser = data.user;
+    clearPasswordFields();
+    renderAuthState();
+    status(`Angemeldet als ${currentUser.displayName || currentUser.username}.`, 'ok');
+    toast('Konto erstellt');
+  }
+  async function login() {
+    const username = $('cwAuthUsername')?.value || '';
+    const password = $('cwAuthPassword')?.value || '';
+    status('Anmeldung laeuft...');
+    const data = await apiFetch('/api/auth', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'login', username, password })
+    });
+    currentUser = data.user;
+    clearPasswordFields();
+    renderAuthState();
+    status(`Angemeldet als ${currentUser.displayName || currentUser.username}.`, 'ok');
+    toast('Angemeldet');
+  }
+  async function logout() {
+    await apiFetch('/api/auth', { method: 'POST', body: JSON.stringify({ action: 'logout' }) });
+    currentUser = null;
+    renderAuthState();
+    status('Abgemeldet. Lokale Sammlung bleibt auf diesem Geraet.', 'warn');
+  }
+  function clearPasswordFields() {
+    ['cwAuthPassword', 'cwSetupToken'].forEach((id) => { const el = $(id); if (el) el.value = ''; });
+  }
   async function pushCloud(silent) {
-    if (!sessionToken) {
-      status('Cloud: Token nur fuer diese Sitzung eingeben. Lokaler Modus aktiv.', 'warn');
+    if (!currentUser && !(await refreshAuth())) {
+      status('Bitte zuerst anmelden.', 'warn');
       return;
     }
     const cards = collection().map(stripHeavyFields);
     status(`Cloud: lade ${cards.length} Karten hoch...`);
-    const data = await cloudFetch(`/api/collection?user=${encodeURIComponent(userId())}`, {
+    const data = await apiFetch('/api/collection', {
       method: 'PUT',
       body: JSON.stringify({ cards })
     });
@@ -57,24 +109,24 @@
     if (!silent) toast('Cloud-Sync hochgeladen');
   }
   async function pullCloud() {
-    if (!sessionToken) {
-      status('Cloud: Token nur fuer diese Sitzung eingeben. Lokaler Modus aktiv.', 'warn');
+    if (!currentUser && !(await refreshAuth())) {
+      status('Bitte zuerst anmelden.', 'warn');
       return;
     }
     status('Cloud: lade Sammlung...');
-    const data = await cloudFetch(`/api/collection?user=${encodeURIComponent(userId())}`);
+    const data = await apiFetch('/api/collection');
     saveCollection(data.cards || []);
     status(`Cloud: ${data.count || 0} Karten geladen. App wird aktualisiert.`, 'ok');
     toast('Cloud-Sammlung geladen');
     setTimeout(() => location.reload(), 700);
   }
   async function mergeCloud() {
-    if (!sessionToken) {
-      status('Cloud: Token nur fuer diese Sitzung eingeben. Lokaler Modus aktiv.', 'warn');
+    if (!currentUser && !(await refreshAuth())) {
+      status('Bitte zuerst anmelden.', 'warn');
       return;
     }
     status('Cloud: fuehre lokale und Cloud-Sammlung zusammen...');
-    const data = await cloudFetch(`/api/collection?user=${encodeURIComponent(userId())}`);
+    const data = await apiFetch('/api/collection');
     const byId = new Map();
     [...(data.cards || []), ...collection()].forEach((card) => byId.set(String(card.id || `${Date.now()}-${Math.random()}`), stripHeavyFields(card)));
     const cards = Array.from(byId.values()).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
@@ -84,20 +136,18 @@
     setTimeout(() => location.reload(), 700);
   }
   function schedulePush() {
-    if (syncing || !autoSync() || !sessionToken) return;
+    if (syncing || !autoSync() || !currentUser) return;
     clearTimeout(pushTimer);
     pushTimer = setTimeout(() => pushCloud(true).catch((err) => status(`Cloud: ${err.message}`, 'warn')), 900);
   }
-  function patchFetchAuth() {
+  function patchFetchCredentials() {
     if (window.__cwCloudFetchPatched) return;
     window.__cwCloudFetchPatched = true;
     const originalFetch = window.fetch.bind(window);
     window.fetch = (input, init) => {
       const url = typeof input === 'string' ? input : (input && input.url) || '';
-      if (sessionToken && (url.startsWith('/api/scan') || url.startsWith('/api/card-search') || url.startsWith('/api/collection'))) {
-        const next = { ...(init || {}) };
-        next.headers = { ...(next.headers || {}), 'x-app-token': sessionToken };
-        return originalFetch(input, next);
+      if (url.startsWith('/api/scan') || url.startsWith('/api/card-search') || url.startsWith('/api/collection') || url.startsWith('/api/auth')) {
+        return originalFetch(input, { ...(init || {}), credentials: 'same-origin' });
       }
       return originalFetch(input, init);
     };
@@ -125,6 +175,7 @@
       .cwCloudGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
       .cwCloudToggle{display:flex;gap:8px;align-items:center;color:#c4cede;font-weight:800}
       .cwCloudToggle input{width:auto}
+      .cwSignedIn{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border:1px solid rgba(33,194,107,.35);background:#062716;border-radius:16px;padding:12px;color:#c9ffdf}
       @media(max-width:620px){.cwCloudGrid{grid-template-columns:1fr}}
     `;
     document.head.appendChild(style);
@@ -138,10 +189,18 @@
     box.id = 'cwCloudCard';
     box.className = 'cwCloudCard';
     box.innerHTML = `
-      <div class="cwCloudHead"><span>Cloud-Sync</span><span class="badge">Neon</span></div>
-      <div class="cwCloudGrid">
-        <div><label>Cloud Token nur diese Sitzung</label><input id="cwCloudToken" type="password" autocomplete="off" placeholder="APP_ACCESS_TOKEN"></div>
-        <div><label>Profil</label><input id="cwCloudUser" placeholder="default"></div>
+      <div class="cwCloudHead"><span>Account & Cloud</span><span class="badge">Neon</span></div>
+      <div id="cwAuthState"></div>
+      <div id="cwAuthForm">
+        <div class="cwCloudGrid">
+          <div><label>Benutzername</label><input id="cwAuthUsername" autocomplete="username" placeholder="z. B. patrick"></div>
+          <div><label>Passwort</label><input id="cwAuthPassword" type="password" autocomplete="current-password" placeholder="mind. 8 Zeichen"></div>
+        </div>
+        <div id="cwSetupWrap"><label>Einrichtungscode nur beim Konto erstellen</label><input id="cwSetupToken" type="password" autocomplete="off" placeholder="APP_ACCESS_TOKEN"></div>
+        <div class="actions">
+          <button class="btn primary" id="cwLogin" type="button">Anmelden</button>
+          <button class="btn ghost" id="cwSignup" type="button">Konto erstellen</button>
+        </div>
       </div>
       <label class="cwCloudToggle"><input id="cwCloudAuto" type="checkbox"> automatisch nach jedem Speichern hochladen</label>
       <div class="actions">
@@ -149,30 +208,47 @@
         <button class="btn ghost" id="cwPushCloud" type="button">Lokal hochladen</button>
         <button class="btn primary" id="cwMergeCloud" type="button">Zusammenfuehren</button>
       </div>
-      <div id="cwCloudStatus" class="cwCloudStatus">Lokaler Modus aktiv. Fuer Cloud-Sync DATABASE_URL und APP_ACCESS_TOKEN in Vercel setzen.</div>
+      <div id="cwCloudStatus" class="cwCloudStatus">Melde dich an, dann synchronisiert die Sammlung mit der Cloud.</div>
     `;
     card.insertBefore(box, card.firstChild.nextSibling);
-    $('cwCloudUser').value = userId();
     $('cwCloudAuto').checked = autoSync();
-    $('cwCloudToken').addEventListener('input', (event) => {
-      sessionToken = event.target.value.trim();
-      status(sessionToken ? 'Cloud: Token fuer diese Sitzung aktiv.' : 'Cloud: Token entfernt. Lokaler Modus aktiv.', sessionToken ? 'ok' : 'warn');
-    });
-    $('cwCloudUser').addEventListener('change', (event) => localStorage.setItem(USER_KEY, event.target.value.trim() || 'default'));
     $('cwCloudAuto').addEventListener('change', (event) => {
       localStorage.setItem(AUTO_KEY, event.target.checked ? '1' : '0');
       status(event.target.checked ? 'Cloud: Auto-Sync aktiv.' : 'Cloud: Auto-Sync aus.', event.target.checked ? 'ok' : '');
     });
+    $('cwLogin').onclick = () => login().catch((err) => status(`Login: ${err.message}`, 'warn'));
+    $('cwSignup').onclick = () => signUp().catch((err) => status(`Konto: ${err.message}`, 'warn'));
     $('cwPullCloud').onclick = () => pullCloud().catch((err) => status(`Cloud: ${err.message}`, 'warn'));
     $('cwPushCloud').onclick = () => pushCloud(false).catch((err) => status(`Cloud: ${err.message}`, 'warn'));
     $('cwMergeCloud').onclick = () => mergeCloud().catch((err) => status(`Cloud: ${err.message}`, 'warn'));
+    renderAuthState();
+  }
+  function renderAuthState() {
+    const state = $('cwAuthState');
+    const form = $('cwAuthForm');
+    const setup = $('cwSetupWrap');
+    if (!state || !form) return;
+    if (currentUser) {
+      state.innerHTML = `<div class="cwSignedIn"><span>Angemeldet als <b>${escapeHtml(currentUser.displayName || currentUser.username)}</b></span><button class="miniBtn miniGhost" id="cwLogout" type="button">Abmelden</button></div>`;
+      form.classList.add('hidden');
+      const button = $('cwLogout');
+      if (button) button.onclick = () => logout().catch((err) => status(`Logout: ${err.message}`, 'warn'));
+    } else {
+      state.innerHTML = setupRequired ? '<div class="cwCloudStatus warn">Noch kein Konto vorhanden. Erstelle eins mit deinem Einrichtungscode.</div>' : '';
+      form.classList.remove('hidden');
+      if (setup) setup.classList.toggle('hidden', !setupRequired);
+    }
+  }
+  function escapeHtml(value) {
+    return String(value || '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
   }
   function install() {
-    patchFetchAuth();
+    patchFetchCredentials();
     patchStorage();
     ensureUi();
+    refreshAuth();
   }
-  window.cwCloudSync = { pullCloud, pushCloud, mergeCloud };
+  window.cwCloudSync = { pullCloud, pushCloud, mergeCloud, refreshAuth };
   window.addEventListener('load', () => {
     install();
     setTimeout(install, 500);
