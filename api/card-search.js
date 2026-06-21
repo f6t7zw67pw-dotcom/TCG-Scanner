@@ -1,11 +1,46 @@
+const searchBuckets = globalThis.__cwSearchBuckets || new Map();
+globalThis.__cwSearchBuckets = searchBuckets;
+
+function tokenFrom(req) {
+  return String(req.headers['x-app-token'] || req.headers.authorization?.replace(/^Bearer\s+/i, '') || '').trim();
+}
+
+function hasAccess(req) {
+  const expected = String(process.env.APP_ACCESS_TOKEN || '').trim();
+  return !expected || tokenFrom(req) === expected;
+}
+
+function clientId(req) {
+  return String(req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown')
+    .split(',')[0]
+    .trim();
+}
+
+function checkRateLimit(req) {
+  const max = Math.max(1, Number(process.env.SEARCH_MAX_PER_HOUR || 300));
+  const now = Date.now();
+  const windowMs = 60 * 60 * 1000;
+  const key = clientId(req);
+  const bucket = searchBuckets.get(key) || { start: now, count: 0 };
+  if (now - bucket.start > windowMs) {
+    bucket.start = now;
+    bucket.count = 0;
+  }
+  bucket.count += 1;
+  searchBuckets.set(key, bucket);
+  return bucket.count <= max;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Nur POST erlaubt' });
+  if (!hasAccess(req)) return res.status(401).json({ ok: false, error: 'Kartensuche ist geschuetzt. Cloud Token in der App eingeben.' });
+  if (!checkRateLimit(req)) return res.status(429).json({ ok: false, error: 'Such-Limit erreicht. Bitte spaeter erneut versuchen.' });
 
   try {
     const body = req.body || {};
-    const rawName = String(body.name || body.originalName || body.cardmarketName || '').trim();
-    const rawNumber = String(body.number || body.fullNumber || body.searchNumber || '').trim();
-    const rawSetCode = String(body.setCode || '').trim();
+    const rawName = String(body.name || body.originalName || body.cardmarketName || '').trim().slice(0, 120);
+    const rawNumber = String(body.number || body.fullNumber || body.searchNumber || '').trim().slice(0, 40);
+    const rawSetCode = String(body.setCode || '').trim().slice(0, 30);
 
     if (!rawName && !rawNumber && !rawSetCode) {
       return res.status(400).json({ ok: false, error: 'Kein Suchbegriff vorhanden.' });
