@@ -11,6 +11,7 @@ import {
   getSql,
   hasAdminToken,
   publicUser,
+  updateUserPassword,
   verifyPassword
 } from './_auth.js';
 
@@ -52,6 +53,15 @@ export default async function handler(req, res) {
         return res.status(403).json({ ok: false, error: 'Erstes Konto braucht den Einrichtungscode.' });
       }
       const user = await createUser(sql, req.body || {});
+      await createSession(res, sql, user.id);
+      return res.status(200).json({ ok: true, user: publicUser(user) });
+    }
+
+    if (action === 'reset-password') {
+      if (!hasAdminToken(req)) {
+        return res.status(403).json({ ok: false, error: 'Passwort-Reset braucht den Einrichtungscode.' });
+      }
+      const user = await updateUserPassword(sql, req.body || {});
       await createSession(res, sql, user.id);
       return res.status(200).json({ ok: true, user: publicUser(user) });
     }
