@@ -7,8 +7,23 @@ Vanilla Webapp fuer Pokemon-TCG Scans, Cardmarket-Links, Sammlung und Cloud-Sync
 - KI-Scan ueber serverseitige OpenAI API Route (`/api/scan`)
 - Karten-Treffersuche ueber serverseitige Pokemon-TCG API Route (`/api/card-search`)
 - Account-Login und Cloud-Sync ueber Neon (`/api/auth`, `/api/collection`)
+- Passwort-Reset ueber Einrichtungscode (`/api/auth`, Aktion `reset-password`)
 - Serverseitige Preisabfrage (`/api/prices`) mit Provider-Schicht
 - Cardmarket-URL- und Variantenhelfer im Frontend
+
+## Account und Passwort-Reset
+
+Die App nutzt Benutzername + Passwort und speichert Sessions als HttpOnly Cookie. Der Einrichtungscode aus `APP_ACCESS_TOKEN` wird nur fuer Konto-Erstellung, weitere Konten und Passwort-Reset verwendet.
+
+Passwort vergessen:
+
+1. In der App zur Sammlung gehen.
+2. Im Bereich `Account & Cloud` Benutzername eintragen.
+3. Im Passwortfeld das neue Passwort eintragen.
+4. Den Einrichtungscode eintragen.
+5. `Passwort zuruecksetzen` klicken.
+
+Beim Reset wird das Passwort serverseitig neu gehasht, alte Sessions dieses Users werden geloescht und das aktuelle Geraet wird direkt neu angemeldet.
 
 ## Preisabfrage
 
@@ -64,6 +79,7 @@ CARDMARKET_API_TOKEN=
 - Kein API-Schluessel liegt im Frontend.
 - Login verwendet HttpOnly Session-Cookies.
 - Cloud-Sync entfernt Base64-Bilddaten vor dem Upload.
+- Passwort-Reset braucht den Einrichtungscode und loescht alte Sessions des Users.
 - Preisabfragen sind rate-limitiert, gecacht und laufen mit Timeout.
 - Kein Scraping und keine Umgehung fremder Schutzmechanismen.
 
