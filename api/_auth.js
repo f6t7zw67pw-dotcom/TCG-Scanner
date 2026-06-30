@@ -159,6 +159,23 @@ export async function findUserByLogin(sql, username) {
   return rows[0] || null;
 }
 
+export async function updateUserPassword(sql, { username, password }) {
+  await ensureAuthSchema(sql);
+  const cleanUsername = normalizeUsername(username);
+  if (cleanUsername.length < 3) throw new Error('Benutzername muss mindestens 3 Zeichen haben.');
+  if (String(password || '').length < 8) throw new Error('Neues Passwort muss mindestens 8 Zeichen haben.');
+  const rows = await sql`
+    UPDATE cw_users
+    SET password_hash = ${hashPassword(password)}, updated_at = now()
+    WHERE username = ${cleanUsername}
+    RETURNING id, username, display_name
+  `;
+  const user = rows[0] || null;
+  if (!user) throw new Error('Benutzerkonto wurde nicht gefunden.');
+  await sql`DELETE FROM cw_sessions WHERE user_id = ${user.id}`;
+  return user;
+}
+
 export async function requireUser(req, res, sql = getSql()) {
   const expected = String(process.env.APP_ACCESS_TOKEN || '').trim();
   if (!expected) {
