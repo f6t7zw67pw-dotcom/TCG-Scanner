@@ -6,12 +6,24 @@ Vanilla Webapp fuer Pokemon-TCG Scans, Cardmarket-Links, Sammlung und Cloud-Sync
 
 - KI-Scan ueber serverseitige OpenAI API Route (`/api/scan`)
 - Katalogbasierte Karten-Treffersuche ueber Neon mit Pokemon-TCG-Fallback (`/api/card-search`, `/api/cards/search`)
+- Scan-Bestaetigungsflow mit 3-5 Katalogtreffern und direkter Uebernahme in die Sammlung
 - Account-Login und Cloud-Sync ueber Neon (`/api/auth`, `/api/collection`)
 - Passwort-Reset ueber Einrichtungscode (`/api/auth`, Aktion `reset-password`)
 - Serverseitige Preisabfrage (`/api/prices`) mit Provider-Schicht und Preis-Snapshots
 - Scan-Historie pro Konto (`/api/scans`)
 - Cardmarket-URL- und Variantenhelfer im Frontend
 - Visuelles MVP-Zielbild im Hilfe-Bereich (`mvp-vision-helper.js`)
+
+## Scan bestaetigen
+
+Nach einem KI-Scan erscheint im Scanner der Bereich `Scan bestaetigen`. Dort sucht die App passende Treffer im eigenen Neon-Katalog. Wenn Neon noch zu wenig weiss, wird die Pokemon-TCG-API abgefragt und der Treffer danach in Neon gespeichert.
+
+Du kannst dann:
+
+1. `Nur uebernehmen` klicken, um die Formularfelder mit dem Treffer zu fuellen.
+2. `Bestaetigen & speichern` klicken, um den Treffer in die Sammlung zu uebernehmen, in der Cloud zu synchronisieren und den Scan als bestaetigt zu markieren.
+
+Der Server-Endpunkt `POST /api/scans/confirm` verknuepft den gespeicherten Scan mit dem bestaetigten Katalogtreffer.
 
 ## MVP-Zielbild
 
@@ -37,6 +49,7 @@ Neue Endpunkte:
 POST /api/cards/search   Katalogsuche mit Pokemon-TCG-Fallback
 GET  /api/scans          letzte Cloud-Scans des angemeldeten Kontos
 POST /api/scans          Scan-Ergebnis manuell speichern
+POST /api/scans/confirm  Scan mit bestaetigter Karte verknuepfen
 DELETE /api/scans        Scan-Historie des Kontos loeschen
 ```
 
