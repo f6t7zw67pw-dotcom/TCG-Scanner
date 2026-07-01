@@ -29,7 +29,14 @@
     return $('cwResetSetupToken')?.value || $('cwSetupToken')?.value || '';
   }
 
+  function syncSetupToken() {
+    const legacy = $('cwSetupToken');
+    const visible = $('cwResetSetupToken');
+    if (legacy && visible) legacy.value = visible.value;
+  }
+
   async function resetPassword() {
+    syncSetupToken();
     const username = $('cwAuthUsername')?.value || '';
     const password = $('cwAuthPassword')?.value || '';
     const setupToken = setupTokenValue();
@@ -50,10 +57,19 @@
     const box = document.createElement('div');
     box.id = 'cwResetSetupWrap';
     box.innerHTML = `
-      <label>Einrichtungscode fuer Passwort-Reset</label>
+      <label>Einrichtungscode fuer Konto erstellen oder Passwort-Reset</label>
       <input id="cwResetSetupToken" type="password" autocomplete="off" placeholder="APP_ACCESS_TOKEN">
     `;
     form.insertBefore(box, actions);
+    const input = $('cwResetSetupToken');
+    if (input) input.addEventListener('input', syncSetupToken);
+  }
+
+  function wireSignupButton() {
+    const signup = $('cwSignup');
+    if (!signup || signup.dataset.cwSetupSync === '1') return;
+    signup.dataset.cwSetupSync = '1';
+    signup.addEventListener('click', syncSetupToken, true);
   }
 
   function install() {
@@ -62,12 +78,14 @@
     if (!form || !actions) return;
 
     ensureResetCodeField(form, actions);
+    wireSignupButton();
+    syncSetupToken();
 
     if (!$('cwResetHint')) {
       const hint = document.createElement('div');
       hint.id = 'cwResetHint';
       hint.className = 'cwCloudStatus';
-      hint.textContent = 'Passwort vergessen? Benutzername, neues Passwort und Einrichtungscode eintragen, dann Passwort zuruecksetzen.';
+      hint.textContent = 'Benutzername, Passwort und Einrichtungscode eintragen. Dann Konto erstellen oder Passwort zuruecksetzen.';
       actions.parentNode.insertBefore(hint, actions.nextSibling);
     }
 
