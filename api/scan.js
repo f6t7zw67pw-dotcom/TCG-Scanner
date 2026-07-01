@@ -1,4 +1,5 @@
 import { getSql, hasSessionOrAdmin } from './_auth.js';
+import { recordScan } from './_catalog.js';
 
 const scanBuckets = globalThis.__cwScanBuckets || new Map();
 globalThis.__cwScanBuckets = scanBuckets;
@@ -31,7 +32,8 @@ function approxDataUrlBytes(value) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Nur POST erlaubt' });
-  if (!(await hasSessionOrAdmin(req, getSql()))) return res.status(401).json({ ok: false, error: 'Bitte anmelden, bevor du KI-Scans startest.' });
+  const sql = getSql();
+  if (!(await hasSessionOrAdmin(req, sql))) return res.status(401).json({ ok: false, error: 'Bitte anmelden, bevor du KI-Scans startest.' });
   if (!checkRateLimit(req)) return res.status(429).json({ ok: false, error: 'Scan-Limit erreicht. Bitte spaeter erneut versuchen.' });
 
   try {
@@ -77,7 +79,22 @@ export default async function handler(req, res) {
     const text = data?.choices?.[0]?.message?.content || '{}';
     let parsed;
     try { parsed = JSON.parse(text); } catch { parsed = { mode, listing: {}, cards: [], raw: text }; }
-    return res.status(200).json({ ok: true, model, ...parsed });
+
+    let scanId = null;
+    if (sql) {
+      try {
+        scanId = await recordScan(sql, {
+          req,
+          mode,
+          input: { mode, extraText: extraText || '', imageBytes: approxDataUrlBytes(image) },
+          result: parsed
+        });
+      } catch (historyError) {
+        console.warn('Scan history write failed', historyError?.message || historyError);
+      }
+    }
+
+    return res.status(200).json({ ok: true, model, scanId, ...parsed });
   } catch (err) {
     return res.status(500).json({ ok: false, error: err?.message || 'Serverfehler' });
   }
