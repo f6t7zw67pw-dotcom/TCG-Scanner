@@ -5,10 +5,11 @@ Vanilla Webapp fuer Pokemon-TCG Scans, Cardmarket-Links, Sammlung und Cloud-Sync
 ## Funktionen
 
 - KI-Scan ueber serverseitige OpenAI API Route (`/api/scan`)
-- Karten-Treffersuche ueber serverseitige Pokemon-TCG API Route (`/api/card-search`)
+- Katalogbasierte Karten-Treffersuche ueber Neon mit Pokemon-TCG-Fallback (`/api/card-search`, `/api/cards/search`)
 - Account-Login und Cloud-Sync ueber Neon (`/api/auth`, `/api/collection`)
 - Passwort-Reset ueber Einrichtungscode (`/api/auth`, Aktion `reset-password`)
-- Serverseitige Preisabfrage (`/api/prices`) mit Provider-Schicht
+- Serverseitige Preisabfrage (`/api/prices`) mit Provider-Schicht und Preis-Snapshots
+- Scan-Historie pro Konto (`/api/scans`)
 - Cardmarket-URL- und Variantenhelfer im Frontend
 - Visuelles MVP-Zielbild im Hilfe-Bereich (`mvp-vision-helper.js`)
 
@@ -24,7 +25,22 @@ Im Hilfe-Bereich zeigt die App eine visualisierte Architektur fuer den naechsten
 - Scan-Historie, Preis-Snapshots und Cloud-Sammlung
 - spaetere Erweiterung auf Magic, Yu-Gi-Oh! und weitere TCGs
 
-Diese Ansicht ist bewusst als Produkt-Blaupause umgesetzt. Die naechsten technischen Schritte sind Datenbankschema, Matching-API und Speicherung von Scan-Historie/Preis-Snapshots.
+Der erste technische Schritt davon ist umgesetzt: Neon legt bei Nutzung automatisch Tabellen fuer `cw_card_sets`, `cw_cards`, `cw_card_variants`, `cw_price_snapshots` und `cw_scans` an. Die bestehende Kartensuche nutzt jetzt diese Katalogbasis und fuellt sie bei Bedarf aus der Pokemon-TCG-API nach.
+
+## Katalog und Scan-Historie
+
+Die App speichert keine grossen Base64-Bilder in der Scan-Historie. Gespeichert werden Scan-Modus, erkannte Felder, Confidence, Warnungen und der beste Katalogtreffer, soweit vorhanden.
+
+Neue Endpunkte:
+
+```text
+POST /api/cards/search   Katalogsuche mit Pokemon-TCG-Fallback
+GET  /api/scans          letzte Cloud-Scans des angemeldeten Kontos
+POST /api/scans          Scan-Ergebnis manuell speichern
+DELETE /api/scans        Scan-Historie des Kontos loeschen
+```
+
+`/api/card-search` bleibt als alter kompatibler Endpunkt erhalten und zeigt intern auf die neue Katalogsuche.
 
 ## Account und Passwort-Reset
 
@@ -68,7 +84,7 @@ Pflicht fuer KI-Scan:
 OPENAI_API_KEY=
 ```
 
-Pflicht fuer Cloud-Sync/Login:
+Pflicht fuer Cloud-Sync/Login/Katalog:
 
 ```bash
 DATABASE_URL=
@@ -94,6 +110,7 @@ CARDMARKET_API_TOKEN=
 - Kein API-Schluessel liegt im Frontend.
 - Login verwendet HttpOnly Session-Cookies.
 - Cloud-Sync entfernt Base64-Bilddaten vor dem Upload.
+- Scan-Historie speichert nur kompakte Ergebnisdaten, keine hochgeladenen Bilddaten.
 - Passwort-Reset braucht den Einrichtungscode und loescht alte Sessions des Users.
 - Preisabfragen sind rate-limitiert, gecacht und laufen mit Timeout.
 - Kein Scraping und keine Umgehung fremder Schutzmechanismen.
