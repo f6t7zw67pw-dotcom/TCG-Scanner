@@ -1,4 +1,5 @@
 import { getSql, hasSessionOrAdmin } from './_auth.js';
+import { recordPriceSnapshot } from './_catalog.js';
 import { getCardPrice, normalizeCardInput } from './price-providers.js';
 
 const priceBuckets = globalThis.__cwPriceBuckets || new Map();
@@ -28,12 +29,21 @@ function checkRateLimit(req) {
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Nur POST erlaubt' });
-  if (!(await hasSessionOrAdmin(req, getSql()))) return res.status(401).json({ ok: false, error: 'Bitte anmelden, bevor du Preise abrufst.' });
+  const sql = getSql();
+  if (!(await hasSessionOrAdmin(req, sql))) return res.status(401).json({ ok: false, error: 'Bitte anmelden, bevor du Preise abrufst.' });
   if (!checkRateLimit(req)) return res.status(429).json({ ok: false, error: 'Preis-Limit erreicht. Bitte spaeter erneut versuchen.' });
 
   try {
     const input = normalizeCardInput(req.body || {});
     const result = await getCardPrice(input);
+    if (sql && result?.price) {
+      try {
+        const snapshotId = await recordPriceSnapshot(sql, { req, input, result });
+        result.snapshotId = snapshotId;
+      } catch (snapshotError) {
+        console.warn('Price snapshot write failed', snapshotError?.message || snapshotError);
+      }
+    }
     const status = result.status || (result.ok === false ? 503 : 200);
     return res.status(status).json(result);
   } catch (err) {
