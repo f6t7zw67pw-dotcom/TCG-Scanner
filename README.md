@@ -10,6 +10,21 @@ Vanilla Webapp fuer Pokemon-TCG Scans, Cardmarket-Links, Sammlung und Cloud-Sync
 - Passwort-Reset ueber Einrichtungscode (`/api/auth`, Aktion `reset-password`)
 - Serverseitige Preisabfrage (`/api/prices`) mit Provider-Schicht
 - Cardmarket-URL- und Variantenhelfer im Frontend
+- Visuelles MVP-Zielbild im Hilfe-Bereich (`mvp-vision-helper.js`)
+
+## MVP-Zielbild
+
+Im Hilfe-Bereich zeigt die App eine visualisierte Architektur fuer den naechsten grossen Scanner-Ausbau:
+
+- Upload-first Scan-Ablauf
+- OCR und Bildvorbereitung
+- eigener normalisierter Kartenkatalog als zentrale Quelle
+- Kandidatenliste mit Confidence-Scoring
+- getrennte Marketplace-Preisprovider
+- Scan-Historie, Preis-Snapshots und Cloud-Sammlung
+- spaetere Erweiterung auf Magic, Yu-Gi-Oh! und weitere TCGs
+
+Diese Ansicht ist bewusst als Produkt-Blaupause umgesetzt. Die naechsten technischen Schritte sind Datenbankschema, Matching-API und Speicherung von Scan-Historie/Preis-Snapshots.
 
 ## Account und Passwort-Reset
 
