@@ -54,10 +54,19 @@ export default async function handler(req, res) {
     const schema = mode === 'multi'
       ? `{"mode":"multi","listing":{"ebayPrice":"","shipping":"","listingType":"","notes":[]},"cards":[${cardSchema}]}`
       : `{"mode":"single","listing":{"ebayPrice":"","shipping":"","listingType":"","notes":[]},"cards":[${cardSchema}]}`;
-    const sharedRules = 'Erlaubte condition-Werte sind nur: Near Mint, Excellent, Good, Played, Poor oder leer. Erlaubte cardVersion-Werte sind: leer, V1, V2, V3, V4. Nutze V1 fuer EX/V/GX, V2 fuer Illustration Rare/Full Art, V3 fuer Special Illustration Rare, V4 fuer Gold/Secret Rare. Wenn unsicher, leer lassen.';
+    const sharedRules = [
+      'Erkenne alle Pokemon-TCG Kartentypen: Pokemon, Trainer, Item, Supporter, Stadium, Tool, Energy und Special Energy. Trainer- und Energie-Karten sind vollwertige Treffer, nicht als Fehler behandeln.',
+      'originalName ist immer der grosse Kartentitel: bei Pokemon der Pokemon-Name, bei Trainer/Item/Supporter/Stadium der Trainerkarten-Name, bei Energy der Energie-Name.',
+      'cardType soll konkrete Werte wie Pokemon, Trainer, Item, Supporter, Stadium, Tool, Energy oder Special Energy nutzen, wenn sichtbar.',
+      'Kartennummern koennen unten links, unten rechts, mittig unten oder bei alten Karten nah am Rand stehen. Suche nach Mustern wie 12/102, 101/108, SVP123, TG05/TG30 oder einzelner Sammlernummer.',
+      'Set-Hinweise koennen links, rechts oder unten stehen: Set-Symbol, Set-Code, Copyright-Zeile, Wizards/e-Reader Layout, Erweiterungsname oder kleine Symbole. Wenn der SetCode unsicher ist, lieber setCode leer lassen und setName oder warning setzen.',
+      'Gewichte die gedruckte Kartennummer staerker als Layoutposition. Bei alten Karten ist die Position nicht verlaesslich.',
+      'Erlaubte condition-Werte sind nur: Near Mint, Excellent, Good, Played, Poor oder leer. Erlaubte cardVersion-Werte sind: leer, V1, V2, V3, V4. Nutze V1 fuer EX/V/GX, V2 fuer Illustration Rare/Full Art, V3 fuer Special Illustration Rare, V4 fuer Gold/Secret Rare. Bei Trainer/Energy normalerweise leer lassen.',
+      'Erfinde nichts. Unsichere Felder leer lassen und warnings setzen.'
+    ].join(' ');
     const prompt = mode === 'multi'
-      ? `Du bist ein Pokemon-TCG Multi-Karten Ankauf-Scanner. Erkenne jede sichtbare Karte separat. Erfinde nichts. Fehlende Felder leer lassen und warnings setzen. ${sharedRules} eBay Gesamtpreis/Gebot und Versand nur erfassen, wenn sichtbar. Cardmarket-Preise nicht schaetzen. Gib ausschliesslich JSON in diesem Format zurueck: ${schema}`
-      : `Du bist ein Pokemon-TCG Einzelkarten-Crop-Scanner. Das Bild zeigt normalerweise genau eine Karte oder einen engen Ausschnitt einer Karte. Analysiere nur diese eine Karte. Lies zuerst den Pokemon-Namen, dann die Kartennummer unten, danach SetCode/SetName falls sichtbar. Bestimme cardType/cardVersion und condition nur wenn sichtbar bzw. aus der Kartenart klar ableitbar. Gewichte gedruckte Kartennummern staerker als dekorativen Text. Erfinde nichts: wenn Name, Nummer, Set, Zustand oder Kartentyp nicht klar lesbar sind, lasse das Feld leer und schreibe eine kurze warning. Keine Cardmarket-Preise schaetzen. ${sharedRules} Gib ausschliesslich JSON in diesem Format zurueck: ${schema}`;
+      ? `Du bist ein Pokemon-TCG Multi-Karten Ankauf-Scanner. Erkenne jede sichtbare Karte separat, inklusive Pokemon, Trainer, Item, Supporter, Stadium, Tool und Energy. ${sharedRules} eBay Gesamtpreis/Gebot und Versand nur erfassen, wenn sichtbar. Cardmarket-Preise nicht schaetzen. Gib ausschliesslich JSON in diesem Format zurueck: ${schema}`
+      : `Du bist ein Pokemon-TCG Einzelkarten-Crop-Scanner. Das Bild zeigt normalerweise genau eine Karte oder einen engen Ausschnitt einer Karte. Analysiere diese Karte typunabhaengig: Pokemon, Trainer, Item, Supporter, Stadium, Tool oder Energy. Lies zuerst den grossen Kartentitel, dann die Kartennummer und danach SetCode/SetName, falls sichtbar. Keine Cardmarket-Preise schaetzen. ${sharedRules} Gib ausschliesslich JSON in diesem Format zurueck: ${schema}`;
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
@@ -69,7 +78,7 @@ export default async function handler(req, res) {
           { role: 'system', content: 'Du gibst ausschliesslich valides JSON zurueck.' },
           { role: 'user', content: [
             { type: 'text', text: `${prompt}\nZusatztext: ${extraText}` },
-            { type: 'image_url', image_url: { url: image, detail: mode === 'multi' ? 'high' : 'low' } }
+            { type: 'image_url', image_url: { url: image, detail: mode === 'multi' ? 'high' : 'high' } }
           ]}
         ]
       })
