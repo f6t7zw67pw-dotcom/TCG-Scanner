@@ -7,6 +7,7 @@ Vanilla Webapp fuer Pokemon-TCG Scans, Cardmarket-Links, Sammlung und Cloud-Sync
 - KI-Scan ueber serverseitige OpenAI API Route (`/api/scan`)
 - Erkennung fuer Pokemon, Trainer, Item, Supporter, Stadium, Tool, Energy und alte Kartenlayouts
 - Eigene Neon-Setdatenbank mit Aliasen fuer Pokemon-TCG-Codes, alte Setnamen und Cardmarket-taugliche Setnamen
+- Deutsche Namens-Aliase fuer Treffersuche und Preisabfrage, z.B. `Schweisser -> Welder` und `M Camerupt Ex -> M Camerupt-EX`
 - Katalogbasierte Karten-Treffersuche ueber Neon mit Pokemon-TCG-Fallback (`/api/card-search`, `/api/cards/search`)
 - Scan-Bestaetigungsflow mit 3-5 Katalogtreffern und direkter Uebernahme in die Sammlung
 - Account-Login und Cloud-Sync ueber Neon (`/api/auth`, `/api/collection`)
@@ -35,6 +36,8 @@ Wichtig: Eine exakt offizielle Cardmarket-Setdatenbank kann nur mit einer erlaub
 ## Scan-Erkennung
 
 Der Scanner behandelt jetzt nicht nur Pokemon-Karten als gueltige Treffer. Trainer, Item, Supporter, Stadium, Tool, Energy und Special Energy werden als normale Karten erkannt und an die Katalogsuche weitergegeben.
+
+Fuer deutsche Karten nutzt die Suche eine Alias-Schicht, bevor sie in Neon und in der Pokemon-TCG-API sucht. Dadurch koennen deutsche Trainer-, Item- und Energie-Namen gegen englische API-Daten gefunden werden. Beispiele: `Schweisser` sucht auch nach `Welder`, und EX-/Mega-Schreibweisen wie `M Camerupt Ex` suchen auch nach `M Camerupt-EX`, `Mega Camerupt-EX` und `Camerupt-EX`.
 
 Fuer alte Kartenlayouts ist die Set-Erkennung toleranter:
 
