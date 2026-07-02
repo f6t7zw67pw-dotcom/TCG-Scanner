@@ -55,7 +55,10 @@
     return {
       name: card.originalName || card.name || card.cardmarketName || $('originalName')?.value || $('cardmarketName')?.value || '',
       number: card.fullNumber || card.searchNumber || card.number || $('fullNumber')?.value || $('searchNumber')?.value || '',
-      setCode: card.setCode || $('setCode')?.value || ''
+      setCode: card.setCode || $('setCode')?.value || '',
+      setName: card.setName || $('setName')?.value || '',
+      cardType: card.cardType || '',
+      supertype: card.cardType || ''
     };
   }
   async function apiFetch(path, options) {
