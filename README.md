@@ -6,7 +6,7 @@ Vanilla Webapp fuer Pokemon-TCG Scans, Cardmarket-Links, Sammlung und Cloud-Sync
 
 - KI-Scan ueber serverseitige OpenAI API Route (`/api/scan`)
 - Erkennung fuer Pokemon, Trainer, Item, Supporter, Stadium, Tool, Energy und alte Kartenlayouts
-- Eigene Neon-Setdatenbank mit Aliasen fuer Pokemon-TCG-Codes, alte Setnamen und Cardmarket-taugliche Setnamen (`/api/sets`)
+- Eigene Neon-Setdatenbank mit Aliasen fuer Pokemon-TCG-Codes, alte Setnamen und Cardmarket-taugliche Setnamen
 - Katalogbasierte Karten-Treffersuche ueber Neon mit Pokemon-TCG-Fallback (`/api/card-search`, `/api/cards/search`)
 - Scan-Bestaetigungsflow mit 3-5 Katalogtreffern und direkter Uebernahme in die Sammlung
 - Account-Login und Cloud-Sync ueber Neon (`/api/auth`, `/api/collection`)
@@ -28,12 +28,7 @@ Gespeichert werden pro Set mehrere Schreibweisen:
 - Cardmarket-tauglicher Slug-Name
 - bekannte alte Set-Aliase wie Base Set, Jungle, Fossil, Gym Heroes, Neo, EX, Diamond & Pearl, Black & White, XY, Sun & Moon, Sword & Shield und Scarlet & Violet
 
-Neue Endpunkte:
-
-```text
-GET  /api/sets?q=Base      Sets und Aliase suchen
-POST /api/sets             Setdaten aus der Pokemon-TCG-API in Neon synchronisieren
-```
+Die Alias-Daten werden beim Katalogaufbau automatisch gespeichert, sobald Karten aus der Pokemon-TCG-API in Neon uebernommen werden. Wegen des Vercel-Hobby-Limits wird dafuer kein zusaetzlicher `/api/sets`-Endpunkt angelegt; die Logik sitzt in der bestehenden Katalogsuche.
 
 Wichtig: Eine exakt offizielle Cardmarket-Setdatenbank kann nur mit einer erlaubten Cardmarket-API/Export-Quelle synchronisiert werden. Die App nutzt deshalb aktuell Pokemon-TCG-Daten plus Cardmarket-kompatible Aliase und Slugs, ohne Cardmarket zu scrapen.
 
@@ -80,9 +75,7 @@ Die App speichert keine grossen Base64-Bilder in der Scan-Historie. Gespeichert 
 Neue Endpunkte:
 
 ```text
-POST /api/cards/search   Katalogsuche mit Pokemon-TCG-Fallback
-GET  /api/sets           Setdatenbank suchen
-POST /api/sets           Setdatenbank synchronisieren
+POST /api/cards/search   Katalogsuche mit Pokemon-TCG-Fallback und Set-Alias-Aufloesung
 GET  /api/scans          letzte Cloud-Scans des angemeldeten Kontos
 POST /api/scans          Scan-Ergebnis manuell speichern
 POST /api/scans/confirm  Scan mit bestaetigter Karte verknuepfen
