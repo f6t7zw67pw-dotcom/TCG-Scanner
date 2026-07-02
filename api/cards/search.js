@@ -1,5 +1,6 @@
 import { getSql, hasSessionOrAdmin } from '../_auth.js';
 import { ensureCatalogSchema, normalizeCardNumber, normalizeSetCode, resolveSetCodes, searchCatalog, upsertPokemonCard } from '../_catalog.js';
+import { findLearnedAliasCards } from '../_catalog-learning.js';
 import { nameSearchVariants } from '../_name-aliases.js';
 
 const searchBuckets = globalThis.__cwCatalogSearchBuckets || new Map();
@@ -154,13 +155,19 @@ function catalogAttempts(input) {
 async function flexibleCatalogSearch(sql, input, limit = 12) {
   const seen = new Set();
   const merged = [];
-  for (const attempt of catalogAttempts(input)) {
-    const rows = await searchCatalog(sql, attempt, limit);
+  const addRows = (rows) => {
     for (const row of rows) {
       if (seen.has(row.id)) continue;
       seen.add(row.id);
       merged.push(row);
     }
+  };
+
+  addRows(await findLearnedAliasCards(sql, input, limit));
+
+  for (const attempt of catalogAttempts(input)) {
+    const rows = await searchCatalog(sql, attempt, limit);
+    addRows(rows);
     if (merged.length >= limit && Number(merged[0]?.score || 0) >= 70) break;
   }
   return merged.sort((a, b) => b.score - a.score).slice(0, limit);
