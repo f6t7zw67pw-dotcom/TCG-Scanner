@@ -55,18 +55,20 @@ function buildPokemonQueries(input) {
   const base = baseName(name);
   const number = normalizeCardNumber(input.number || input.fullNumber || input.searchNumber);
   const setCode = normalizeSetCode(input.setCode);
+  const type = String(input.cardType || input.supertype || '').trim();
   const queries = [];
   const add = (query) => { if (query && !queries.includes(query)) queries.push(query); };
 
   if (name && number && setCode) add(`name:${quote(name)} number:${number} set.ptcgoCode:${setCode}`);
-  if (base && number && setCode) add(`name:${quote(base)} number:${number} set.ptcgoCode:${setCode}`);
+  if (base && number && setCode && base !== name) add(`name:${quote(base)} number:${number} set.ptcgoCode:${setCode}`);
   if (name && number) add(`name:${quote(name)} number:${number}`);
-  if (base && number) add(`name:${quote(base)} number:${number}`);
+  if (base && number && base !== name) add(`name:${quote(base)} number:${number}`);
   if (number && setCode) add(`number:${number} set.ptcgoCode:${setCode}`);
   if (name && setCode) add(`name:${quote(name)} set.ptcgoCode:${setCode}`);
-  if (base && setCode) add(`name:${quote(base)} set.ptcgoCode:${setCode}`);
+  if (base && setCode && base !== name) add(`name:${quote(base)} set.ptcgoCode:${setCode}`);
+  if (name && type) add(`name:${quote(name)} supertype:${quote(type)}`);
   if (name) add(`name:${quote(name)}`);
-  if (base) add(`name:${quote(base)}`);
+  if (base && base !== name) add(`name:${quote(base)}`);
   if (number) add(`number:${number}`);
   if (setCode) add(`set.ptcgoCode:${setCode}`);
   return queries;
@@ -113,6 +115,27 @@ function publicCard(card) {
   };
 }
 
+async function flexibleCatalogSearch(sql, input, limit = 12) {
+  const attempts = [
+    input,
+    { ...input, setCode: '' },
+    { ...input, setCode: '', number: input.number || input.fullNumber || input.searchNumber || '' },
+    { ...input, setCode: '', number: '', fullNumber: '', searchNumber: '' }
+  ];
+  const seen = new Set();
+  const merged = [];
+  for (const attempt of attempts) {
+    const rows = await searchCatalog(sql, attempt, limit);
+    for (const row of rows) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      merged.push(row);
+    }
+    if (merged.length >= limit && Number(merged[0]?.score || 0) >= 70) break;
+  }
+  return merged.sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Nur POST erlaubt' });
@@ -128,14 +151,14 @@ export default async function handler(req, res) {
     const hasQuery = input.name || input.originalName || input.cardmarketName || input.number || input.fullNumber || input.searchNumber || input.setCode;
     if (!hasQuery) return res.status(400).json({ ok: false, error: 'Kein Suchbegriff vorhanden.' });
 
-    let cards = await searchCatalog(sql, input, 12);
+    let cards = await flexibleCatalogSearch(sql, input, 12);
     let hydrated = false;
 
     if (cards.length < 3 || Number(cards[0]?.score || 0) < 70) {
       const externalCards = await fetchPokemonCandidates(input);
       for (const card of externalCards) await upsertPokemonCard(sql, card);
       hydrated = externalCards.length > 0;
-      cards = await searchCatalog(sql, input, 12);
+      cards = await flexibleCatalogSearch(sql, input, 12);
     }
 
     return res.status(200).json({ ok: true, source: hydrated ? 'catalog+pokemon-tcg-api' : 'catalog', cards: cards.map(publicCard).slice(0, 12) });
