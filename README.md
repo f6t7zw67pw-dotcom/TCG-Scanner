@@ -5,6 +5,7 @@ Vanilla Webapp fuer Pokemon-TCG Scans, Cardmarket-Links, Sammlung und Cloud-Sync
 ## Funktionen
 
 - KI-Scan ueber serverseitige OpenAI API Route (`/api/scan`)
+- Erkennung fuer Pokemon, Trainer, Item, Supporter, Stadium, Tool, Energy und alte Kartenlayouts
 - Katalogbasierte Karten-Treffersuche ueber Neon mit Pokemon-TCG-Fallback (`/api/card-search`, `/api/cards/search`)
 - Scan-Bestaetigungsflow mit 3-5 Katalogtreffern und direkter Uebernahme in die Sammlung
 - Account-Login und Cloud-Sync ueber Neon (`/api/auth`, `/api/collection`)
@@ -13,6 +14,17 @@ Vanilla Webapp fuer Pokemon-TCG Scans, Cardmarket-Links, Sammlung und Cloud-Sync
 - Scan-Historie pro Konto (`/api/scans`)
 - Cardmarket-URL- und Variantenhelfer im Frontend
 - Visuelles MVP-Zielbild im Hilfe-Bereich (`mvp-vision-helper.js`)
+
+## Scan-Erkennung
+
+Der Scanner behandelt jetzt nicht nur Pokemon-Karten als gueltige Treffer. Trainer, Item, Supporter, Stadium, Tool, Energy und Special Energy werden als normale Karten erkannt und an die Katalogsuche weitergegeben.
+
+Fuer alte Kartenlayouts ist die Set-Erkennung toleranter:
+
+- Kartennummern koennen links, rechts, mittig unten oder nah am Rand stehen.
+- SetCode wird bei Unsicherheit lieber leer gelassen, statt hart geraten zu werden.
+- Die Katalogsuche versucht zuerst Name + Nummer + Set, danach automatisch ohne SetCode, nur mit Nummer oder nur mit Name.
+- Dadurch blockiert ein falsch gelesenes altes Set nicht mehr direkt alle Treffer.
 
 ## Scan bestaetigen
 
