@@ -15,6 +15,57 @@
     { value: 'V4', label: 'V4' }
   ];
 
+  const NAME_ALIASES = {
+    schweisser: 'Welder',
+    'forschung des professors': "Professor's Research",
+    'befehl vom boss': "Boss's Orders",
+    'bosss befehle': "Boss's Orders",
+    mary: 'Marnie',
+    richter: 'Judge',
+    'professor eichs hinweis': "Professor Oak's Hint",
+    'professor eich': 'Professor Oak',
+    'top genesung': 'Full Heal',
+    beleber: 'Revive',
+    sonderbonbon: 'Rare Candy',
+    hyperball: 'Ultra Ball',
+    superball: 'Great Ball',
+    pokeball: 'Poke Ball',
+    'poke ball': 'Poke Ball',
+    nestball: 'Nest Ball',
+    flottball: 'Quick Ball',
+    finsterball: 'Dusk Ball',
+    timerball: 'Timer Ball',
+    levelball: 'Level Ball',
+    freundesball: 'Friend Ball',
+    tausch: 'Switch',
+    fluchtseil: 'Escape Rope',
+    energiewechsel: 'Energy Switch',
+    energiesuche: 'Energy Search',
+    'energie suche': 'Energy Search',
+    'doppelte farblose energie': 'Double Colorless Energy',
+    'doppelte turbo energie': 'Double Turbo Energy',
+    'feuer energie': 'Fire Energy',
+    'wasser energie': 'Water Energy',
+    'pflanzen energie': 'Grass Energy',
+    'elektro energie': 'Lightning Energy',
+    'kampf energie': 'Fighting Energy',
+    'psycho energie': 'Psychic Energy',
+    'finsternis energie': 'Darkness Energy',
+    'metall energie': 'Metal Energy',
+    'feen energie': 'Fairy Energy',
+    'drachen energie': 'Dragon Energy',
+    'kampf vip pass': 'Battle VIP Pass',
+    waldsiegelstein: 'Forest Seal Stone',
+    erdversiegelungsstein: 'Earthen Seal Stone',
+    luftballon: 'Air Balloon',
+    wahlband: 'Choice Band',
+    wahlschal: 'Choice Scarf',
+    riesenumhang: 'Giant Cape',
+    stadionruine: 'Ruins of Alph',
+    'pfad zum gipfel': 'Path to the Peak',
+    'stadt ohne namen': 'Lost City'
+  };
+
   const CROP_SIZE_KEY = 'cw_crop_size';
 
   function padNumber(value) {
@@ -28,6 +79,31 @@
 
   function searchNumber(value) {
     return padNumber(String(value || '').split('/')[0]);
+  }
+
+  function foldName(value) {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/ß/g, 'ss')
+      .replace(/&/g, ' and ')
+      .replace(/[^a-z0-9 ]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function aliasForName(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const mega = raw.match(/^M\s+(.+?)\s*[- ]\s*EX$/i) || raw.match(/^Mega\s+(.+?)\s*[- ]\s*EX$/i);
+    if (mega) return `M ${mega[1].trim()}-EX`;
+    const ex = raw.match(/^(.+?)\s*[- ]\s*EX$/i);
+    if (ex) return `${ex[1].trim()}-EX`;
+    const gx = raw.match(/^(.+?)\s*[- ]\s*GX$/i);
+    if (gx) return `${gx[1].trim()}-GX`;
+    return NAME_ALIASES[foldName(raw)] || '';
   }
 
   function addStyle() {
@@ -252,12 +328,48 @@
     });
   }
 
+  function applySingleNameAlias() {
+    const original = document.getElementById('originalName');
+    const cardmarket = document.getElementById('cardmarketName');
+    const hint = document.getElementById('nameHint');
+    if (!original || !cardmarket) return;
+    const alias = aliasForName(original.value);
+    if (!alias) return;
+    const currentFolded = foldName(cardmarket.value);
+    const rawFolded = foldName(original.value);
+    const aliasFolded = foldName(alias);
+    if (!currentFolded || currentFolded === rawFolded || currentFolded === aliasFolded) {
+      cardmarket.value = alias;
+      cardmarket.dispatchEvent(new Event('change', { bubbles: true }));
+      if (hint) hint.textContent = `Alias-Treffer: ${original.value.trim()} -> ${alias}`;
+      if (typeof window.buildUrl === 'function') window.buildUrl();
+      renderSingleVariants();
+    }
+  }
+
+  function installNameAliasHelpers() {
+    const original = document.getElementById('originalName');
+    if (original && original.dataset.cwNameAlias !== '1') {
+      original.dataset.cwNameAlias = '1';
+      original.addEventListener('input', () => setTimeout(applySingleNameAlias, 0));
+      original.addEventListener('change', () => setTimeout(applySingleNameAlias, 0));
+      original.addEventListener('blur', () => setTimeout(applySingleNameAlias, 0));
+    }
+    const force = document.getElementById('forceTranslateBtn');
+    if (force && force.dataset.cwNameAlias !== '1') {
+      force.dataset.cwNameAlias = '1';
+      force.addEventListener('click', () => setTimeout(applySingleNameAlias, 0));
+    }
+    setTimeout(applySingleNameAlias, 0);
+  }
+
   function install() {
     addStyle();
     installIcons();
     ensureCropSizeControl();
     applyCropSize(localStorage.getItem(CROP_SIZE_KEY) || 150);
     ensureSingleVariants();
+    installNameAliasHelpers();
     enhanceMultiCards();
     const multi = document.getElementById('multiResults');
     if (multi && !window.__cwCardmarketHelperObserver) {
