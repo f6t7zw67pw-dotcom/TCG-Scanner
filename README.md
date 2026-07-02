@@ -6,6 +6,7 @@ Vanilla Webapp fuer Pokemon-TCG Scans, Cardmarket-Links, Sammlung und Cloud-Sync
 
 - KI-Scan ueber serverseitige OpenAI API Route (`/api/scan`)
 - Erkennung fuer Pokemon, Trainer, Item, Supporter, Stadium, Tool, Energy und alte Kartenlayouts
+- Eigene Neon-Setdatenbank mit Aliasen fuer Pokemon-TCG-Codes, alte Setnamen und Cardmarket-taugliche Setnamen (`/api/sets`)
 - Katalogbasierte Karten-Treffersuche ueber Neon mit Pokemon-TCG-Fallback (`/api/card-search`, `/api/cards/search`)
 - Scan-Bestaetigungsflow mit 3-5 Katalogtreffern und direkter Uebernahme in die Sammlung
 - Account-Login und Cloud-Sync ueber Neon (`/api/auth`, `/api/collection`)
@@ -14,6 +15,27 @@ Vanilla Webapp fuer Pokemon-TCG Scans, Cardmarket-Links, Sammlung und Cloud-Sync
 - Scan-Historie pro Konto (`/api/scans`)
 - Cardmarket-URL- und Variantenhelfer im Frontend
 - Visuelles MVP-Zielbild im Hilfe-Bereich (`mvp-vision-helper.js`)
+
+## Set-Datenbank
+
+Die App fuehrt jetzt eine eigene Set-Alias-Tabelle in Neon: `cw_set_aliases`.
+
+Gespeichert werden pro Set mehrere Schreibweisen:
+
+- Pokemon-TCG API Set-ID
+- PTCGO-/Set-Code
+- offizieller Setname aus der Pokemon-TCG-API
+- Cardmarket-tauglicher Slug-Name
+- bekannte alte Set-Aliase wie Base Set, Jungle, Fossil, Gym Heroes, Neo, EX, Diamond & Pearl, Black & White, XY, Sun & Moon, Sword & Shield und Scarlet & Violet
+
+Neue Endpunkte:
+
+```text
+GET  /api/sets?q=Base      Sets und Aliase suchen
+POST /api/sets             Setdaten aus der Pokemon-TCG-API in Neon synchronisieren
+```
+
+Wichtig: Eine exakt offizielle Cardmarket-Setdatenbank kann nur mit einer erlaubten Cardmarket-API/Export-Quelle synchronisiert werden. Die App nutzt deshalb aktuell Pokemon-TCG-Daten plus Cardmarket-kompatible Aliase und Slugs, ohne Cardmarket zu scrapen.
 
 ## Scan-Erkennung
 
@@ -49,7 +71,7 @@ Im Hilfe-Bereich zeigt die App eine visualisierte Architektur fuer den naechsten
 - Scan-Historie, Preis-Snapshots und Cloud-Sammlung
 - spaetere Erweiterung auf Magic, Yu-Gi-Oh! und weitere TCGs
 
-Der erste technische Schritt davon ist umgesetzt: Neon legt bei Nutzung automatisch Tabellen fuer `cw_card_sets`, `cw_cards`, `cw_card_variants`, `cw_price_snapshots` und `cw_scans` an. Die bestehende Kartensuche nutzt jetzt diese Katalogbasis und fuellt sie bei Bedarf aus der Pokemon-TCG-API nach.
+Der erste technische Schritt davon ist umgesetzt: Neon legt bei Nutzung automatisch Tabellen fuer `cw_card_sets`, `cw_set_aliases`, `cw_cards`, `cw_card_variants`, `cw_price_snapshots` und `cw_scans` an. Die bestehende Kartensuche nutzt jetzt diese Katalogbasis und fuellt sie bei Bedarf aus der Pokemon-TCG-API nach.
 
 ## Katalog und Scan-Historie
 
@@ -59,6 +81,8 @@ Neue Endpunkte:
 
 ```text
 POST /api/cards/search   Katalogsuche mit Pokemon-TCG-Fallback
+GET  /api/sets           Setdatenbank suchen
+POST /api/sets           Setdatenbank synchronisieren
 GET  /api/scans          letzte Cloud-Scans des angemeldeten Kontos
 POST /api/scans          Scan-Ergebnis manuell speichern
 POST /api/scans/confirm  Scan mit bestaetigter Karte verknuepfen
