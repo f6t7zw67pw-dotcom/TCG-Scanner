@@ -1,3 +1,5 @@
+import { foldName, nameSearchVariants } from './_name-aliases.js';
+
 const DEFAULT_TTL_SECONDS = 60 * 60;
 const DEFAULT_TIMEOUT_MS = 6500;
 
@@ -66,13 +68,7 @@ function normalizeName(value) {
 }
 
 function fold(value) {
-  return normalizeName(value)
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9 ]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return foldName(normalizeName(value));
 }
 
 function quote(value) {
@@ -80,32 +76,39 @@ function quote(value) {
 }
 
 function buildPokemonQueries(input) {
-  const name = normalizeName(input.name);
+  const names = nameSearchVariants(input.name);
   const number = cleanNumber(input.number);
   const setCode = input.setCode;
   const queries = [];
   const add = (query) => { if (query && !queries.includes(query)) queries.push(query); };
 
-  if (name && number && setCode) add(`name:${quote(name)} number:${number} set.ptcgoCode:${setCode}`);
-  if (name && number) add(`name:${quote(name)} number:${number}`);
+  for (const name of names) {
+    if (name && number && setCode) add(`name:${quote(name)} number:${number} set.ptcgoCode:${setCode}`);
+    if (name && number) add(`name:${quote(name)} number:${number}`);
+    if (name && setCode) add(`name:${quote(name)} set.ptcgoCode:${setCode}`);
+    if (name) add(`name:${quote(name)}`);
+  }
+
   if (number && setCode) add(`number:${number} set.ptcgoCode:${setCode}`);
-  if (name && setCode) add(`name:${quote(name)} set.ptcgoCode:${setCode}`);
-  if (name) add(`name:${quote(name)}`);
   if (number) add(`number:${number}`);
   if (setCode) add(`set.ptcgoCode:${setCode}`);
-  return queries;
+  return queries.slice(0, 80);
 }
 
 function scorePokemonCard(input, card) {
   let score = 0;
   const cardName = fold(card.name);
-  const inputName = fold(input.name);
+  const inputNames = nameSearchVariants(input.name).map(fold).filter(Boolean);
   const cardNumber = cleanNumber(card.number);
   const inputNumber = cleanNumber(input.number);
   const cardSetCode = String(card.set?.ptcgoCode || card.set?.id || '').toUpperCase();
 
-  if (inputName && cardName === inputName) score += 90;
-  else if (inputName && cardName.includes(inputName)) score += 45;
+  let bestNameScore = 0;
+  for (const inputName of inputNames) {
+    if (cardName === inputName) bestNameScore = Math.max(bestNameScore, 90);
+    else if (cardName.includes(inputName) || inputName.includes(cardName)) bestNameScore = Math.max(bestNameScore, 45);
+  }
+  score += bestNameScore;
   if (inputNumber && cardNumber === inputNumber) score += 80;
   if (input.setCode && cardSetCode === input.setCode) score += 60;
   return score;
