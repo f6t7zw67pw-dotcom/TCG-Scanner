@@ -1,5 +1,6 @@
 import { getSql, hasSessionOrAdmin } from '../_auth.js';
 import { ensureCatalogSchema, normalizeCardNumber, normalizeSetCode, resolveSetCodes, searchCatalog, upsertPokemonCard } from '../_catalog.js';
+import { nameSearchVariants } from '../_name-aliases.js';
 
 const searchBuckets = globalThis.__cwCatalogSearchBuckets || new Map();
 globalThis.__cwCatalogSearchBuckets = searchBuckets;
@@ -50,9 +51,17 @@ function quote(value) {
   return `"${String(value || '').replace(/"/g, '').trim()}"`;
 }
 
+function buildNameVariants(input) {
+  const raw = input.name || input.originalName || input.cardmarketName || '';
+  const variants = nameSearchVariants(raw);
+  const normalized = normalizeName(raw);
+  if (normalized && !variants.includes(normalized)) variants.push(normalized);
+  return variants.slice(0, 14);
+}
+
 function buildPokemonQueries(input, setCodes = []) {
-  const name = normalizeName(input.name || input.originalName || input.cardmarketName);
-  const base = baseName(name);
+  const names = buildNameVariants(input);
+  const bases = Array.from(new Set(names.map(baseName).filter(Boolean)));
   const number = normalizeCardNumber(input.number || input.fullNumber || input.searchNumber);
   const type = String(input.cardType || input.supertype || '').trim();
   const codes = Array.from(new Set([normalizeSetCode(input.setCode), ...setCodes.map(normalizeSetCode)].filter(Boolean)));
@@ -61,21 +70,29 @@ function buildPokemonQueries(input, setCodes = []) {
   const withCodes = codes.length ? codes : [''];
 
   for (const setCode of withCodes) {
-    if (name && number && setCode) add(`name:${quote(name)} number:${number} set.ptcgoCode:${setCode}`);
-    if (base && number && setCode && base !== name) add(`name:${quote(base)} number:${number} set.ptcgoCode:${setCode}`);
+    for (const name of names) {
+      if (name && number && setCode) add(`name:${quote(name)} number:${number} set.ptcgoCode:${setCode}`);
+      if (name && setCode) add(`name:${quote(name)} set.ptcgoCode:${setCode}`);
+    }
+    for (const base of bases) {
+      if (base && number && setCode) add(`name:${quote(base)} number:${number} set.ptcgoCode:${setCode}`);
+      if (base && setCode) add(`name:${quote(base)} set.ptcgoCode:${setCode}`);
+    }
     if (number && setCode) add(`number:${number} set.ptcgoCode:${setCode}`);
-    if (name && setCode) add(`name:${quote(name)} set.ptcgoCode:${setCode}`);
-    if (base && setCode && base !== name) add(`name:${quote(base)} set.ptcgoCode:${setCode}`);
   }
 
-  if (name && number) add(`name:${quote(name)} number:${number}`);
-  if (base && number && base !== name) add(`name:${quote(base)} number:${number}`);
-  if (name && type) add(`name:${quote(name)} supertype:${quote(type)}`);
-  if (name) add(`name:${quote(name)}`);
-  if (base && base !== name) add(`name:${quote(base)}`);
+  for (const name of names) {
+    if (name && number) add(`name:${quote(name)} number:${number}`);
+    if (name && type) add(`name:${quote(name)} supertype:${quote(type)}`);
+    if (name) add(`name:${quote(name)}`);
+  }
+  for (const base of bases) {
+    if (base && number) add(`name:${quote(base)} number:${number}`);
+    if (base) add(`name:${quote(base)}`);
+  }
   if (number) add(`number:${number}`);
   for (const setCode of codes) add(`set.ptcgoCode:${setCode}`);
-  return queries;
+  return queries.slice(0, 80);
 }
 
 async function fetchPokemonCandidates(input, setCodes = []) {
@@ -120,16 +137,24 @@ function publicCard(card) {
   };
 }
 
+function catalogAttempts(input) {
+  const names = buildNameVariants(input);
+  const rawName = input.name || input.originalName || input.cardmarketName || '';
+  const baseAttempts = names.length ? names : [rawName];
+  const attempts = [];
+  for (const name of baseAttempts) {
+    attempts.push({ ...input, name, originalName: name, cardmarketName: name });
+    attempts.push({ ...input, name, originalName: name, cardmarketName: name, setCode: '' });
+    attempts.push({ ...input, name, originalName: name, cardmarketName: name, setCode: '', number: input.number || input.fullNumber || input.searchNumber || '' });
+    attempts.push({ ...input, name, originalName: name, cardmarketName: name, setCode: '', setName: '', number: '', fullNumber: '', searchNumber: '' });
+  }
+  return attempts;
+}
+
 async function flexibleCatalogSearch(sql, input, limit = 12) {
-  const attempts = [
-    input,
-    { ...input, setCode: '' },
-    { ...input, setCode: '', number: input.number || input.fullNumber || input.searchNumber || '' },
-    { ...input, setCode: '', setName: '', number: '', fullNumber: '', searchNumber: '' }
-  ];
   const seen = new Set();
   const merged = [];
-  for (const attempt of attempts) {
+  for (const attempt of catalogAttempts(input)) {
     const rows = await searchCatalog(sql, attempt, limit);
     for (const row of rows) {
       if (seen.has(row.id)) continue;
