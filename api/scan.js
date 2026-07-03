@@ -50,13 +50,18 @@ export default async function handler(req, res) {
     }
 
     const model = mode === 'multi' ? (process.env.OPENAI_MULTI_MODEL || 'gpt-4o') : (process.env.OPENAI_SINGLE_MODEL || 'gpt-4o-mini');
-    const cardSchema = '{"originalName":"","fullNumber":"","searchNumber":"","setCode":"","setName":"","languageGuess":"","languageCode":"","cardType":"","cardVersion":"","condition":"","confidence":0,"warnings":[]}';
+    const cardSchema = '{"originalName":"","visibleTitle":"","englishName":"","cardmarketName":"","fullNumber":"","searchNumber":"","setCode":"","setName":"","languageGuess":"","languageCode":"","cardType":"","cardVersion":"","condition":"","confidence":0,"warnings":[]}';
     const schema = mode === 'multi'
       ? `{"mode":"multi","listing":{"ebayPrice":"","shipping":"","listingType":"","notes":[]},"cards":[${cardSchema}]}`
       : `{"mode":"single","listing":{"ebayPrice":"","shipping":"","listingType":"","notes":[]},"cards":[${cardSchema}]}`;
     const sharedRules = [
       'Erkenne alle Pokemon-TCG Kartentypen: Pokemon, Trainer, Item, Supporter, Stadium, Tool, Energy und Special Energy. Trainer- und Energie-Karten sind vollwertige Treffer, nicht als Fehler behandeln.',
-      'originalName ist immer der grosse Kartentitel: bei Pokemon der Pokemon-Name, bei Trainer/Item/Supporter/Stadium der Trainerkarten-Name, bei Energy der Energie-Name.',
+      'visibleTitle ist der Titel exakt so, wie er auf der Karte sichtbar ist, inklusive japanischer, chinesischer oder koreanischer Schriftzeichen, wenn er lesbar ist.',
+      'originalName ist der beste nutzbare Kartentitel fuer die App. Bei Deutsch/Englisch kann das der sichtbare Titel sein. Bei Japanisch, Chinesisch oder Koreanisch soll originalName der englische internationale Kartenname sein, wenn du ihn sicher aus Artwork, Nummer, Set, sichtbarem Titel oder Zusatztext ableiten kannst; sonst sichtbaren Titel verwenden und warning setzen.',
+      'englishName ist immer der englische internationale Kartenname fuer Pokemon-TCG-API/Cardmarket-Suche, wenn sicher ableitbar. Bei Unsicherheit leer lassen.',
+      'cardmarketName ist der Cardmarket-kompatible englische Produktname: englischer Kartenname, mit EX/GX/V-Suffix passend als Charizard-ex, M Camerupt-EX, Pikachu V usw. Bei Trainer/Energy englischen Cardmarket-Namen verwenden, z. B. Welder, Professor Research, Basic Fire Energy. Wenn unsicher leer lassen.',
+      'Bei japanischen Karten: languageGuess Japanese und languageCode 7. Bei englischen Karten: English/1. Bei deutschen Karten: German/3. Bei chinesischen Karten: Chinese und languageCode leer lassen, falls du keinen sicheren Cardmarket-Code kennst.',
+      'Bei chinesischen, japanischen und koreanischen Karten ist die Kartennummer plus Set/Symbol oft wichtiger als der gedruckte Name. Nutze sichtbare Nummern, Set-Kuerzel, Copyright, Regulierungsmarke und Artwork, um englishName/cardmarketName zu bestimmen.',
       'cardType soll konkrete Werte wie Pokemon, Trainer, Item, Supporter, Stadium, Tool, Energy oder Special Energy nutzen, wenn sichtbar.',
       'Kartennummern koennen unten links, unten rechts, mittig unten oder bei alten Karten nah am Rand stehen. Suche nach Mustern wie 12/102, 101/108, SVP123, TG05/TG30 oder einzelner Sammlernummer.',
       'Set-Hinweise koennen links, rechts oder unten stehen: Set-Symbol, Set-Code, Copyright-Zeile, Wizards/e-Reader Layout, Erweiterungsname oder kleine Symbole. Wenn der SetCode unsicher ist, lieber setCode leer lassen und setName oder warning setzen.',
