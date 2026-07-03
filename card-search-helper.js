@@ -117,6 +117,14 @@
     });
     document.querySelectorAll('.matchItem img').forEach(attachImageFallback);
   }
+  function loadSetDbHelper() {
+    if (window.__cwSetDbHelper || document.querySelector('script[data-cw-set-db-helper="1"]')) return;
+    const script = document.createElement('script');
+    script.src = 'set-db-helper.js';
+    script.async = false;
+    script.dataset.cwSetDbHelper = '1';
+    document.head.appendChild(script);
+  }
   function installObserver() {
     if (window.__cwCardSearchObserver) return;
     window.__cwCardSearchObserver = new MutationObserver(enhanceMatchUi);
@@ -126,6 +134,7 @@
     installFetchPatch();
     installObserver();
     enhanceMatchUi();
+    loadSetDbHelper();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install); else install();
