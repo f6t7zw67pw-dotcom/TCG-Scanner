@@ -7,6 +7,8 @@ const searchBuckets = globalThis.__cwCatalogSearchBuckets || new Map();
 globalThis.__cwCatalogSearchBuckets = searchBuckets;
 const tcgdexCache = globalThis.__cwTcgdexCache || new Map();
 globalThis.__cwTcgdexCache = tcgdexCache;
+const tcgdexDetailCache = globalThis.__cwTcgdexDetailCache || new Map();
+globalThis.__cwTcgdexDetailCache = tcgdexDetailCache;
 
 function clientId(req) {
   return String(req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown')
@@ -179,6 +181,25 @@ async function fetchTcgdexList(lang) {
   return cards;
 }
 
+async function fetchTcgdexDetail(lang, id) {
+  const key = `${lang}:${id}`;
+  const cached = tcgdexDetailCache.get(key);
+  if (cached) return cached;
+  const url = `https://api.tcgdex.net/v2/${encodeURIComponent(lang)}/cards/${encodeURIComponent(id)}`;
+  const response = await fetch(url, { headers: { Accept: 'application/json', 'User-Agent': 'TCG-Scanner' } });
+  if (!response.ok) return null;
+  const card = await response.json().catch(() => null);
+  if (card && typeof card === 'object') tcgdexDetailCache.set(key, card);
+  return card;
+}
+
+function nameMatchScore(cardName, names) {
+  if (!cardName || !names.length) return 0;
+  if (names.some((name) => name && cardName === name)) return 60;
+  if (names.some((name) => name && (cardName.includes(name) || name.includes(cardName)))) return 34;
+  return 0;
+}
+
 function scoreTcgdexCard(card, input, lang) {
   const names = buildNameVariants(input).map(fold).filter(Boolean);
   const rawName = fold(input.name || input.originalName || input.cardmarketName || input.englishName || input.visibleTitle || '');
@@ -189,26 +210,26 @@ function scoreTcgdexCard(card, input, lang) {
   const setCode = fold(input.setCode || '');
   const setName = fold(input.setName || '');
   const cardSet = fold(card.setCode || card.set?.id || card.set?.name || String(card.id || '').split('-')[0]);
-  let score = 0;
+  const nameScore = nameMatchScore(cardName, names);
+  if (names.length && nameScore <= 0) return 0;
+  let score = nameScore;
 
-  if (cardName && names.some((name) => name && cardName === name)) score += 60;
-  else if (cardName && names.some((name) => name && (cardName.includes(name) || name.includes(cardName)))) score += 34;
   if (number && localId && number === localId) score += 34;
   if (setCode && cardSet && (cardSet === setCode || cardSet.includes(setCode) || setCode.includes(cardSet))) score += 24;
   if (setName && cardSet && (cardSet.includes(setName) || setName.includes(cardSet))) score += 12;
   if (lang === 'ja' || lang === 'ko' || lang.startsWith('zh') || lang === 'cn') score += 8;
   if (!names.length && number && localId === number) score += 24;
+  if (tcgdexImage(card, 'low')) score += 3;
   return score;
 }
 
-function tcgdexImage(card) {
-  return card.image ? `${card.image}/high.png` : '';
+function tcgdexImage(card, size = 'high') {
+  return card?.image ? `${card.image}/${size}.png` : '';
 }
 
 function tcgdexPublicCard(card, lang, score) {
   const setCode = card.setCode || card.set?.id || String(card.id || '').split('-')[0] || '';
   const setName = card.setName || card.set?.name || setCode;
-  const image = tcgdexImage(card);
   return {
     id: `tcgdex-${lang}-${card.id}`,
     sourceId: card.id || '',
@@ -223,8 +244,8 @@ function tcgdexPublicCard(card, lang, score) {
     setName: String(setName || '').replace(/\s+/g, '-'),
     cardmarketSetName: '',
     rarity: card.rarity || '',
-    imageSmall: image,
-    imageLarge: image,
+    imageSmall: tcgdexImage(card, 'low'),
+    imageLarge: tcgdexImage(card, 'high'),
     score,
     source: `tcgdex-${lang}`
   };
@@ -232,7 +253,7 @@ function tcgdexPublicCard(card, lang, score) {
 
 async function fetchTcgdexCandidates(input, limit = 12) {
   const seen = new Set();
-  const candidates = [];
+  const preliminary = [];
   for (const lang of tcgdexLanguages(input)) {
     let cards = [];
     try {
@@ -246,10 +267,18 @@ async function fetchTcgdexCandidates(input, limit = 12) {
       const key = `${lang}:${card.id}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      candidates.push(tcgdexPublicCard(card, lang, score));
+      preliminary.push({ lang, card, score });
     }
   }
-  return candidates.sort((a, b) => b.score - a.score).slice(0, limit);
+
+  const detailed = [];
+  for (const item of preliminary.sort((a, b) => b.score - a.score).slice(0, Math.max(limit * 2, 18))) {
+    const detail = await fetchTcgdexDetail(item.lang, item.card.id);
+    const card = detail ? { ...item.card, ...detail } : item.card;
+    const score = Math.max(item.score, scoreTcgdexCard(card, input, item.lang));
+    detailed.push(tcgdexPublicCard(card, item.lang, score));
+  }
+  return detailed.sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
 function publicCard(card) {
