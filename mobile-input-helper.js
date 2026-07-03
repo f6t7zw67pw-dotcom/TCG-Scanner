@@ -29,28 +29,30 @@
     }
   }
 
+  function focusEventTarget(event) {
+    const field = isField(event.target);
+    if (!field) return;
+    focusField(field);
+  }
+
   function installTouchFocus() {
     if (document.documentElement.dataset.cwMobileInputFocus === '1') return;
     document.documentElement.dataset.cwMobileInputFocus = '1';
 
-    document.addEventListener('touchend', (event) => {
-      const field = isField(event.target);
-      if (!field) return;
-      focusField(field);
+    document.addEventListener('touchstart', focusEventTarget, true);
+    document.addEventListener('touchend', focusEventTarget, true);
+
+    document.addEventListener('pointerdown', (event) => {
+      if (event.pointerType && event.pointerType !== 'touch') return;
+      focusEventTarget(event);
     }, true);
 
     document.addEventListener('pointerup', (event) => {
       if (event.pointerType && event.pointerType !== 'touch') return;
-      const field = isField(event.target);
-      if (!field) return;
-      focusField(field);
+      focusEventTarget(event);
     }, true);
 
-    document.addEventListener('click', (event) => {
-      const field = isField(event.target);
-      if (!field) return;
-      focusField(field);
-    }, true);
+    document.addEventListener('click', focusEventTarget, true);
   }
 
   function installStyle() {
@@ -62,6 +64,8 @@
         -webkit-user-select: text !important;
         user-select: text !important;
         pointer-events: auto !important;
+        position: relative;
+        z-index: 2;
       }
       input:focus, textarea:focus, select:focus {
         border-color: #7c3cff !important;
