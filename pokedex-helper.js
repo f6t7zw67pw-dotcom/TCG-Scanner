@@ -1,4 +1,4 @@
-// Adds a checkable National Pokedex tab with collection auto-matching.
+// Adds a checkable National Pokedex tab with manual card assignments.
 (function () {
   if (window.__cwPokedexHelper) return;
   window.__cwPokedexHelper = true;
@@ -6,6 +6,7 @@
   const LIMIT = 1025;
   const CACHE_KEY = 'cw_pokedex_species_v1';
   const MANUAL_KEY = 'cw_pokedex_manual_v1';
+  const ASSIGN_KEY = 'cw_pokedex_assignments_v1';
   const CACHE_MAX_AGE = 1000 * 60 * 60 * 24 * 7;
   const GENERATIONS = [
     { id: 'gen1', label: 'Gen 1', region: 'Kanto', from: 1, to: 151 },
@@ -34,8 +35,11 @@
   let activeGen = 'gen1';
   let query = '';
   let onlyOpen = false;
+  let assignFilter = '';
+  let activeAssignId = 0;
   let manualSet = new Set();
-  let autoMap = new Map();
+  let assignments = {};
+  let suggestionMap = new Map();
 
   function byId(id) { return document.getElementById(id); }
   function readJson(key, fallback) {
@@ -56,6 +60,9 @@
       .replace(/\s+/g, ' ')
       .trim();
   }
+  function escapeHtml(value) {
+    return String(value || '').replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+  }
   function displayName(name) {
     return String(name || '').split('-').map(part => part ? part[0].toUpperCase() + part.slice(1) : '').join(' ');
   }
@@ -68,6 +75,25 @@
   function saveManual() {
     writeJson(MANUAL_KEY, Array.from(manualSet).sort((a, b) => a - b));
   }
+  function loadAssignments() {
+    const raw = readJson(ASSIGN_KEY, {});
+    assignments = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  }
+  function saveAssignments() {
+    writeJson(ASSIGN_KEY, assignments);
+  }
+  function assignedKeys(id) {
+    return Array.isArray(assignments[String(id)]) ? assignments[String(id)] : [];
+  }
+  function setAssignedKeys(id, keys) {
+    const clean = Array.from(new Set(keys.filter(Boolean)));
+    if (clean.length) assignments[String(id)] = clean;
+    else delete assignments[String(id)];
+    saveAssignments();
+  }
+  function cardTitle(card) {
+    return card.cardmarketName || card.originalName || card.name || 'Unbenannte Karte';
+  }
   function cleanCardName(value) {
     let name = normalize(value);
     if (!name) return '';
@@ -79,48 +105,59 @@
       .trim();
     return GERMAN_TO_ENGLISH[name] || name;
   }
-  function cardNamesFromCollection() {
-    const names = [];
-    const oldCollection = readJson('cw_collection', []);
-    if (Array.isArray(oldCollection)) {
-      oldCollection.forEach(card => {
-        if (!card || typeof card !== 'object') return;
-        names.push(card.originalName, card.cardmarketName, card.name);
+  function collectionCards() {
+    const cards = [];
+    const seen = new Set();
+    function add(card, collectionName, index) {
+      if (!card || typeof card !== 'object') return;
+      const key = String(card.id || `${collectionName || 'sammlung'}-${index}-${cardTitle(card)}-${card.fullNumber || ''}-${card.setCode || ''}`);
+      if (seen.has(key)) return;
+      seen.add(key);
+      cards.push({
+        key,
+        collectionName: collectionName || 'Sammlung',
+        title: cardTitle(card),
+        number: card.fullNumber || card.number || '',
+        setCode: card.setCode || '',
+        setName: card.setName || '',
+        image: card.image || card.imageSmall || '',
+        names: [card.originalName, card.cardmarketName, card.name].filter(Boolean).map(cleanCardName).filter(Boolean),
+        raw: card
       });
     }
+    const oldCollection = readJson('cw_collection', []);
+    if (Array.isArray(oldCollection)) oldCollection.forEach((card, index) => add(card, 'Hauptsammlung', index));
     const v2 = readJson('cw_collections_v2', null);
     const collections = Array.isArray(v2?.collections) ? v2.collections : [];
     collections.forEach(collection => {
-      const cards = Array.isArray(collection?.cards) ? collection.cards : [];
-      cards.forEach(card => {
-        if (!card || typeof card !== 'object') return;
-        names.push(card.originalName, card.cardmarketName, card.name);
-      });
+      const list = Array.isArray(collection?.cards) ? collection.cards : [];
+      list.forEach((card, index) => add(card, collection?.name || 'Sammlung', index));
     });
-    return names.filter(Boolean).map(cleanCardName).filter(Boolean);
+    return cards;
   }
-  function buildAutoMap() {
+  function buildSuggestionMap() {
     const next = new Map();
     if (!species.length) {
-      autoMap = next;
+      suggestionMap = next;
       return;
     }
     const lookup = species.map(item => ({ id: item.id, name: normalize(item.name) }));
-    const cardNames = cardNamesFromCollection();
-    cardNames.forEach(cardName => {
-      lookup.forEach(mon => {
-        const hit = cardName === mon.name || new RegExp(`(^| )${mon.name}( |$)`).test(cardName);
-        if (!hit) return;
-        next.set(mon.id, (next.get(mon.id) || 0) + 1);
+    collectionCards().forEach(card => {
+      card.names.forEach(cardName => {
+        lookup.forEach(mon => {
+          const hit = cardName === mon.name || new RegExp(`(^| )${mon.name}( |$)`).test(cardName);
+          if (!hit) return;
+          const list = next.get(mon.id) || [];
+          if (!list.some(item => item.key === card.key)) list.push(card);
+          next.set(mon.id, list);
+        });
       });
     });
-    autoMap = next;
+    suggestionMap = next;
   }
   async function loadSpecies() {
     const cached = readJson(CACHE_KEY, null);
-    if (cached?.items?.length === LIMIT && Date.now() - (cached.createdAt || 0) < CACHE_MAX_AGE) {
-      return cached.items;
-    }
+    if (cached?.items?.length === LIMIT && Date.now() - (cached.createdAt || 0) < CACHE_MAX_AGE) return cached.items;
     try {
       const response = await fetch(`https://pokeapi.co/api/v2/pokemon-species?limit=${LIMIT}`);
       if (!response.ok) throw new Error('PokeAPI nicht erreichbar');
@@ -148,17 +185,27 @@
       .pokedexTools{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
       .pokedexCheck{display:flex;align-items:center;gap:8px;color:var(--m);font-weight:850;white-space:nowrap}
       .pokedexCheck input{width:auto;accent-color:#7c3cff}
-      .pokedexGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(142px,1fr));gap:12px}
-      .pokedexCard{border:1px solid rgba(89,117,165,.32);border-radius:20px;background:linear-gradient(180deg,#0a1628,#081221);padding:10px;display:grid;gap:8px;min-height:214px}
+      .pokedexGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(154px,1fr));gap:12px}
+      .pokedexCard{border:1px solid rgba(89,117,165,.32);border-radius:20px;background:linear-gradient(180deg,#0a1628,#081221);padding:10px;display:grid;gap:8px;min-height:256px}
       .pokedexCard.done{border-color:rgba(33,194,107,.55);box-shadow:0 0 0 1px rgba(33,194,107,.16) inset}
       .pokedexImage{width:100%;aspect-ratio:1/1;object-fit:contain;background:rgba(3,8,16,.42);border-radius:15px}
       .pokedexLine{display:flex;align-items:center;gap:7px;min-width:0}
       .pokedexLine input{width:auto;accent-color:#21c26b}
       .pokedexName{font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .pokedexNo{font-size:12px;color:var(--m);font-weight:850}
+      .pokedexBadges{display:flex;gap:6px;flex-wrap:wrap}
       .pokedexBadge{font-size:11px;font-weight:900;border:1px solid #3c557a;background:#111f35;color:#d8e4ff;border-radius:999px;padding:5px 7px;width:max-content}
-      .pokedexBadge.auto{border-color:rgba(33,194,107,.5);background:#062716;color:#c9ffdf}
-      @media(max-width:620px){.pokedexStats{grid-template-columns:1fr}.pokedexTools{grid-template-columns:1fr}.pokedexGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.bottomNav{left:8px;right:8px;gap:5px}.bottomNav .navBtn{font-size:11px;padding-left:2px;padding-right:2px}.navIcon{font-size:18px}}
+      .pokedexBadge.auto{border-color:rgba(255,157,69,.5);background:#321407;color:#ffd7bd}
+      .pokedexBadge.assigned{border-color:rgba(33,194,107,.5);background:#062716;color:#c9ffdf}
+      .pokedexAssignBtn{border:1px solid #304663;border-radius:14px;background:linear-gradient(180deg,#162640,#0e1b30);color:var(--t);font-weight:850;padding:9px 8px}
+      .pokedexOverlay{position:fixed;inset:0;background:rgba(2,6,14,.72);z-index:1200;display:flex;align-items:flex-end;justify-content:center;padding:16px}
+      .pokedexModal{width:min(760px,100%);max-height:86vh;overflow:auto;background:linear-gradient(180deg,#101f36,#07111f);border:1px solid rgba(96,124,174,.48);border-radius:24px;padding:16px;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+      .pokedexModalHead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+      .pokedexCardList{display:grid;gap:9px;margin-top:12px}
+      .pokedexAssignItem{display:grid;grid-template-columns:auto 54px 1fr;gap:10px;align-items:center;border:1px solid rgba(89,117,165,.32);border-radius:16px;background:#071426;padding:8px}
+      .pokedexAssignItem input{width:auto;accent-color:#21c26b}
+      .pokedexAssignItem img{width:54px;height:72px;object-fit:cover;border-radius:10px;background:#020814}
+      @media(max-width:620px){.pokedexStats{grid-template-columns:1fr}.pokedexTools{grid-template-columns:1fr}.pokedexGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.bottomNav{left:8px;right:8px;gap:5px}.bottomNav .navBtn{font-size:11px;padding-left:2px;padding-right:2px}.navIcon{font-size:18px}.pokedexAssignItem{grid-template-columns:auto 44px 1fr}.pokedexAssignItem img{width:44px;height:60px}}
     `;
     document.head.appendChild(style);
   }
@@ -174,9 +221,9 @@
           <div class="title"><h2>Pokedex</h2><span class="badge">National Dex</span></div>
           <div class="pokedexTop">
             <div class="pokedexStats">
-              <div class="pokedexStat"><b id="pokedexTotalDone">0</b><span class="small">von ${LIMIT} abgehakt</span></div>
+              <div class="pokedexStat"><b id="pokedexTotalDone">0</b><span class="small">von ${LIMIT} von dir abgehakt</span></div>
               <div class="pokedexStat"><b id="pokedexGenDone">0</b><span class="small">in dieser Generation</span></div>
-              <div class="pokedexStat"><b id="pokedexCollectionDone">0</b><span class="small">durch Sammlung erkannt</span></div>
+              <div class="pokedexStat"><b id="pokedexAssignedDone">0</b><span class="small">Pokemon mit zugeordneten Karten</span></div>
             </div>
             <div class="pokedexGenTabs" id="pokedexGenTabs"></div>
             <div class="pokedexTools">
@@ -230,17 +277,28 @@
         saveManual();
         renderPokedex();
       });
+      grid.addEventListener('click', event => {
+        const button = event.target.closest('[data-assign-id]');
+        if (!button) return;
+        openAssignmentModal(Number(button.dataset.assignId));
+      });
     }
   }
   function currentGen() {
     return GENERATIONS.find(gen => gen.id === activeGen) || GENERATIONS[0];
   }
   function checked(id) {
-    return manualSet.has(id) || autoMap.has(id);
+    return manualSet.has(id);
+  }
+  function assignedCount(id) {
+    return assignedKeys(id).length;
+  }
+  function assignedPokemonCount() {
+    return Object.values(assignments).filter(value => Array.isArray(value) && value.length).length;
   }
   function renderPokedex() {
     ensureTab();
-    buildAutoMap();
+    buildSuggestionMap();
     const grid = byId('pokedexGrid');
     const status = byId('pokedexStatus');
     if (!grid || !status) return;
@@ -249,36 +307,114 @@
     const totalDone = species.filter(mon => checked(mon.id)).length;
     const genSpecies = species.filter(mon => mon.id >= gen.from && mon.id <= gen.to);
     const genDone = genSpecies.filter(mon => checked(mon.id)).length;
-    const autoDone = autoMap.size;
     if (byId('pokedexTotalDone')) byId('pokedexTotalDone').textContent = `${totalDone}`;
     if (byId('pokedexGenDone')) byId('pokedexGenDone').textContent = `${genDone}/${genSpecies.length}`;
-    if (byId('pokedexCollectionDone')) byId('pokedexCollectionDone').textContent = `${autoDone}`;
+    if (byId('pokedexAssignedDone')) byId('pokedexAssignedDone').textContent = `${assignedPokemonCount()}`;
     let visible = genSpecies.filter(mon => !query || normalize(mon.name).includes(query) || String(mon.id).includes(query));
     if (onlyOpen) visible = visible.filter(mon => !checked(mon.id));
-    status.textContent = `${gen.label} ${gen.region}: ${genDone} von ${genSpecies.length} abgehakt.`;
+    status.textContent = `${gen.label} ${gen.region}: ${genDone} von ${genSpecies.length} von dir abgehakt. Vorschlaege haken nichts automatisch ab.`;
     if (!visible.length) {
       grid.innerHTML = '<div class="hint">Keine Pokemon fuer diese Filter gefunden.</div>';
       return;
     }
     grid.innerHTML = visible.map(mon => {
-      const isAuto = autoMap.has(mon.id);
       const isDone = checked(mon.id);
-      const count = autoMap.get(mon.id) || 0;
-      const badge = isAuto ? `<span class="pokedexBadge auto">In Sammlung${count > 1 ? ' x' + count : ''}</span>` : (manualSet.has(mon.id) ? '<span class="pokedexBadge">Manuell</span>' : '<span class="pokedexBadge">Offen</span>');
+      const suggestions = suggestionMap.get(mon.id) || [];
+      const assigned = assignedCount(mon.id);
+      const badges = [isDone ? '<span class="pokedexBadge assigned">Abgehakt</span>' : '<span class="pokedexBadge">Offen</span>'];
+      if (assigned) badges.push(`<span class="pokedexBadge assigned">${assigned} zugeordnet</span>`);
+      if (suggestions.length) badges.push(`<span class="pokedexBadge auto">${suggestions.length} Vorschlag${suggestions.length === 1 ? '' : 'e'}</span>`);
       return `<article class="pokedexCard${isDone ? ' done' : ''}">
         <img class="pokedexImage" src="${imageUrl(mon.id)}" alt="${displayName(mon.name)}" loading="lazy">
         <div class="pokedexLine"><input data-pokedex-id="${mon.id}" type="checkbox" ${isDone ? 'checked' : ''}><div class="pokedexName" title="${displayName(mon.name)}">${displayName(mon.name)}</div></div>
         <div class="pokedexNo">#${String(mon.id).padStart(4, '0')}</div>
-        ${badge}
+        <div class="pokedexBadges">${badges.join('')}</div>
+        <button class="pokedexAssignBtn" data-assign-id="${mon.id}" type="button">Karten zuordnen</button>
       </article>`;
+    }).join('');
+  }
+  function openAssignmentModal(id) {
+    activeAssignId = id;
+    assignFilter = '';
+    let overlay = byId('pokedexAssignOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'pokedexAssignOverlay';
+      overlay.className = 'pokedexOverlay';
+      overlay.innerHTML = `
+        <div class="pokedexModal">
+          <div class="pokedexModalHead"><h2 id="pokedexAssignTitle">Karten zuordnen</h2><button class="btn ghost" id="pokedexAssignClose" type="button">Schliessen</button></div>
+          <div class="hint" id="pokedexAssignHint"></div>
+          <input id="pokedexAssignSearch" placeholder="Karte suchen...">
+          <div id="pokedexAssignList" class="pokedexCardList"></div>
+        </div>`;
+      document.body.appendChild(overlay);
+      overlay.addEventListener('click', event => {
+        if (event.target === overlay || event.target.id === 'pokedexAssignClose') closeAssignmentModal();
+      });
+      byId('pokedexAssignSearch').addEventListener('input', event => {
+        assignFilter = normalize(event.target.value);
+        renderAssignmentModal();
+      });
+      byId('pokedexAssignList').addEventListener('change', event => {
+        const checkbox = event.target.closest('[data-card-key]');
+        if (!checkbox) return;
+        const current = new Set(assignedKeys(activeAssignId));
+        if (checkbox.checked) current.add(checkbox.dataset.cardKey);
+        else current.delete(checkbox.dataset.cardKey);
+        setAssignedKeys(activeAssignId, Array.from(current));
+        renderAssignmentModal();
+        renderPokedex();
+      });
+    }
+    overlay.classList.remove('hidden');
+    byId('pokedexAssignSearch').value = '';
+    renderAssignmentModal();
+  }
+  function closeAssignmentModal() {
+    const overlay = byId('pokedexAssignOverlay');
+    if (overlay) overlay.classList.add('hidden');
+    activeAssignId = 0;
+  }
+  function renderAssignmentModal() {
+    const mon = species.find(item => item.id === activeAssignId);
+    const list = byId('pokedexAssignList');
+    if (!mon || !list) return;
+    const selected = new Set(assignedKeys(activeAssignId));
+    const suggestions = new Set((suggestionMap.get(activeAssignId) || []).map(card => card.key));
+    const cards = collectionCards().filter(card => {
+      if (!assignFilter) return true;
+      const haystack = normalize(`${card.title} ${card.number} ${card.setCode} ${card.setName} ${card.collectionName}`);
+      return haystack.includes(assignFilter);
+    }).sort((a, b) => {
+      const aScore = (selected.has(a.key) ? 0 : 10) + (suggestions.has(a.key) ? 0 : 1);
+      const bScore = (selected.has(b.key) ? 0 : 10) + (suggestions.has(b.key) ? 0 : 1);
+      return aScore - bScore || a.title.localeCompare(b.title);
+    });
+    byId('pokedexAssignTitle').textContent = `${displayName(mon.name)} Karten zuordnen`;
+    byId('pokedexAssignHint').textContent = `${selected.size} Karte${selected.size === 1 ? '' : 'n'} zugeordnet. Vorschlaege sind nur Hilfe, du entscheidest selbst.`;
+    if (!cards.length) {
+      list.innerHTML = '<div class="hint">Keine Karten in deiner Sammlung gefunden.</div>';
+      return;
+    }
+    list.innerHTML = cards.map(card => {
+      const checkedAttr = selected.has(card.key) ? 'checked' : '';
+      const suggestion = suggestions.has(card.key) ? '<span class="pokedexBadge auto">Vorschlag</span>' : '';
+      const image = card.image ? `<img src="${card.image}" alt="${escapeHtml(card.title)}">` : '<img alt="">';
+      return `<label class="pokedexAssignItem">
+        <input data-card-key="${escapeHtml(card.key)}" type="checkbox" ${checkedAttr}>
+        ${image}
+        <div><b>${escapeHtml(card.title)}</b><div class="small">${escapeHtml(card.number)} · ${escapeHtml(card.setCode)} ${escapeHtml(card.setName)}</div><div class="small">${escapeHtml(card.collectionName)}</div>${suggestion}</div>
+      </label>`;
     }).join('');
   }
   async function init() {
     ensureTab();
     loadManual();
+    loadAssignments();
     try {
       species = await loadSpecies();
-      buildAutoMap();
+      buildSuggestionMap();
       renderPokedex();
     } catch (err) {
       const status = byId('pokedexStatus');
@@ -288,8 +424,9 @@
   }
 
   window.addEventListener('storage', event => {
-    if (event.key === 'cw_collection' || event.key === 'cw_collections_v2' || event.key === MANUAL_KEY) {
+    if (event.key === 'cw_collection' || event.key === 'cw_collections_v2' || event.key === MANUAL_KEY || event.key === ASSIGN_KEY) {
       loadManual();
+      loadAssignments();
       renderPokedex();
     }
   });
