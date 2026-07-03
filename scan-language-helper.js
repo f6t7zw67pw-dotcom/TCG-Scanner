@@ -7,36 +7,61 @@
     english: '1', englisch: '1', en: '1',
     german: '3', deutsch: '3', de: '3',
     japanese: '7', japanisch: '7', ja: '7', jp: '7',
-    korean: '8', koreanisch: '8', ko: '8', kr: '8'
+    korean: '8', koreanisch: '8', ko: '8', kr: '8',
+    chinese: '7', chinesisch: '7', zh: '7', cn: '7'
   };
   const LANGUAGE_LABELS = {
     '1': 'Englisch',
     '3': 'Deutsch',
-    '7': 'Japanisch',
+    '7': 'Japanisch/Chinesisch',
     '8': 'Koreanisch'
   };
+  const translationCache = new Map();
 
   function normalize(value) {
     return String(value || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   }
+  function text(value) {
+    return String(value || '').trim();
+  }
+  function hasAsianText(value) {
+    return /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/.test(String(value || ''));
+  }
+  function likelyLatin(value) {
+    return /^[A-Za-z0-9 .:'’&+\-]+$/.test(text(value));
+  }
+  function toCardmarketName(value) {
+    return text(value)
+      .replace(/\s+ex$/i, '-ex')
+      .replace(/\s+EX$/i, '-EX')
+      .replace(/\s+V$/i, '-V')
+      .replace(/\s+GX$/i, '-GX');
+  }
   function bestSearchName(card) {
-    return String(card?.cardmarketName || card?.englishName || card?.originalName || card?.visibleTitle || card?.name || '').trim();
+    const cm = text(card?.cardmarketName);
+    if (cm && !hasAsianText(cm)) return cm;
+    const english = text(card?.englishName);
+    if (english && !hasAsianText(english)) return toCardmarketName(english);
+    return text(card?.originalName || card?.visibleTitle || card?.name || cm);
   }
   function visibleOrBestName(card) {
-    const visible = String(card?.visibleTitle || '').trim();
-    const original = String(card?.originalName || '').trim();
-    const english = String(card?.englishName || card?.cardmarketName || '').trim();
-    return original || visible || english;
+    const visible = text(card?.visibleTitle);
+    const original = text(card?.originalName);
+    const name = text(card?.name);
+    const english = text(card?.englishName || card?.cardmarketName);
+    return original || visible || name || english;
   }
   function languageCode(card) {
-    const explicit = String(card?.languageCode || '').trim();
+    const explicit = text(card?.languageCode);
     if (explicit) return explicit;
     const guess = normalize(card?.languageGuess || card?.language || '');
     if (LANGUAGE_CODES[guess]) return LANGUAGE_CODES[guess];
     if (guess.includes('japan')) return '7';
+    if (guess.includes('china') || guess.includes('chinese') || guess.includes('zh')) return '7';
     if (guess.includes('korea')) return '8';
     if (guess.includes('engl')) return '1';
     if (guess.includes('german') || guess.includes('deutsch')) return '3';
+    if (hasAsianText(`${card?.name || ''} ${card?.originalName || ''} ${card?.visibleTitle || ''}`)) return '7';
     return '';
   }
   function setInputValue(input, value) {
@@ -60,23 +85,62 @@
     if (!chip) return;
     chip.click();
   }
-  function enhanceSingleCard(card) {
-    if (!card || typeof card !== 'object') return;
+  function translationKey(card) {
+    return [card?.name, card?.originalName, card?.visibleTitle, card?.cardmarketName, card?.fullNumber, card?.number, card?.searchNumber, card?.setCode, card?.setName].map(text).join('|');
+  }
+  async function translateCard(card) {
+    if (!card || !hasAsianText(`${card.name || ''} ${card.originalName || ''} ${card.visibleTitle || ''} ${card.cardmarketName || ''}`)) return card;
+    const key = translationKey(card);
+    if (translationCache.has(key)) return translationCache.get(key);
+    const response = await fetch('/api/name-translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(card)
+    });
+    const data = await response.json().catch(() => ({}));
+    const translated = data?.ok && data.card ? { ...card, ...data.card } : card;
+    translationCache.set(key, translated);
+    return translated;
+  }
+  function applyTranslatedSingle(card) {
+    if (!card) return;
     const original = document.getElementById('originalName');
     const cardmarket = document.getElementById('cardmarketName');
+    const fullNumber = document.getElementById('fullNumber');
+    const searchNumber = document.getElementById('searchNumber');
+    const setCode = document.getElementById('setCode');
+    const setName = document.getElementById('setName');
     const hint = document.getElementById('nameHint');
+
     const originalValue = visibleOrBestName(card);
     const searchValue = bestSearchName(card);
     if (originalValue) setInputValue(original, originalValue);
-    if (searchValue) setInputValue(cardmarket, searchValue);
+    if (searchValue && (!hasAsianText(searchValue) || likelyLatin(searchValue))) setInputValue(cardmarket, toCardmarketName(searchValue));
+    if (card.fullNumber || card.number) setInputValue(fullNumber, card.fullNumber || card.number);
+    if (card.searchNumber || card.number) setInputValue(searchNumber, String(card.searchNumber || card.number || '').split('/')[0]);
+    if (card.setCode) setInputValue(setCode, card.setCode);
+    if (card.cardmarketSetName || card.setName) setInputValue(setName, card.cardmarketSetName || card.setName);
+
     applyLanguageChip(languageCode(card));
-    if (hint && (card.englishName || card.visibleTitle || card.languageGuess)) {
+    if (hint && (card.englishName || card.visibleTitle || card.languageGuess || card.i18nSource)) {
       const lang = card.languageGuess ? `Sprache: ${card.languageGuess}. ` : '';
       const visible = card.visibleTitle ? `Originaltitel: ${card.visibleTitle}. ` : '';
       const english = card.englishName ? `Suchname: ${card.englishName}.` : '';
       hint.textContent = `${lang}${visible}${english}`.trim();
     }
     if (typeof window.buildUrl === 'function') window.buildUrl();
+  }
+  function enhanceSingleCard(card) {
+    if (!card || typeof card !== 'object') return;
+    applyTranslatedSingle(card);
+    if (hasAsianText(`${card.name || ''} ${card.originalName || ''} ${card.visibleTitle || ''} ${card.cardmarketName || ''}`)) {
+      translateCard(card).then((translated) => {
+        applyTranslatedSingle(translated);
+        if (window.__cwLastScanLanguagePayload?.cards?.[0]) {
+          window.__cwLastScanLanguagePayload.cards[0] = { ...window.__cwLastScanLanguagePayload.cards[0], ...translated };
+        }
+      }).catch(() => {});
+    }
   }
   function enhanceMultiCard(domCard, card) {
     if (!domCard || !card) return;
@@ -87,12 +151,19 @@
     domCard.dataset.scanLanguageCode = languageCode(card);
     domCard.dataset.scanVisibleTitle = card.visibleTitle || '';
     domCard.dataset.scanEnglishName = card.englishName || '';
+    if (hasAsianText(`${card.name || ''} ${card.originalName || ''} ${card.visibleTitle || ''} ${card.cardmarketName || ''}`)) {
+      translateCard(card).then((translated) => {
+        setInputValue(original, visibleOrBestName(translated));
+        setInputValue(cardmarket, bestSearchName(translated));
+        domCard.dataset.scanEnglishName = translated.englishName || '';
+      }).catch(() => {});
+    }
   }
   function normalizeScanPayload(payload) {
     if (!payload || !Array.isArray(payload.cards)) return payload;
     payload.cards = payload.cards.map(card => {
       const next = { ...card };
-      if (!next.originalName && (next.englishName || next.visibleTitle)) next.originalName = next.englishName || next.visibleTitle;
+      if (!next.originalName && (next.englishName || next.visibleTitle || next.name)) next.originalName = next.visibleTitle || next.name || next.englishName;
       if (!next.cardmarketName && next.englishName) next.cardmarketName = next.englishName;
       return next;
     });
