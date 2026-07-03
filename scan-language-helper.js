@@ -10,12 +10,6 @@
     korean: '8', koreanisch: '8', ko: '8', kr: '8',
     chinese: '7', chinesisch: '7', zh: '7', cn: '7'
   };
-  const LANGUAGE_LABELS = {
-    '1': 'Englisch',
-    '3': 'Deutsch',
-    '7': 'Japanisch/Chinesisch',
-    '8': 'Koreanisch'
-  };
   const translationCache = new Map();
 
   function normalize(value) {
@@ -88,19 +82,63 @@
   function translationKey(card) {
     return [card?.name, card?.originalName, card?.visibleTitle, card?.cardmarketName, card?.fullNumber, card?.number, card?.searchNumber, card?.setCode, card?.setName].map(text).join('|');
   }
+  function translatedFromMatch(card, match) {
+    if (!match) return card;
+    const matchName = text(match.cardmarketName || match.englishName || match.name);
+    const englishName = !hasAsianText(matchName) ? matchName.replace(/-/g, ' ') : '';
+    return {
+      ...card,
+      originalName: text(card.originalName || card.visibleTitle || card.name || match.name),
+      visibleTitle: text(card.visibleTitle || card.originalName || card.name || match.name),
+      englishName: englishName || card.englishName || '',
+      cardmarketName: !hasAsianText(matchName) ? toCardmarketName(matchName) : card.cardmarketName,
+      fullNumber: card.fullNumber || match.number || card.number || '',
+      searchNumber: card.searchNumber || String(match.number || card.number || '').split('/')[0],
+      setCode: card.setCode || match.setCode || '',
+      setName: match.cardmarketSetName || card.setName || match.setName || '',
+      cardmarketSetName: match.cardmarketSetName || match.setName || card.cardmarketSetName || '',
+      imageSmall: match.imageSmall || card.imageSmall || '',
+      imageLarge: match.imageLarge || card.imageLarge || '',
+      i18nSource: match.source || 'card-search'
+    };
+  }
   async function translateCard(card) {
     if (!card || !hasAsianText(`${card.name || ''} ${card.originalName || ''} ${card.visibleTitle || ''} ${card.cardmarketName || ''}`)) return card;
     const key = translationKey(card);
     if (translationCache.has(key)) return translationCache.get(key);
-    const response = await fetch('/api/name-translate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(card)
-    });
-    const data = await response.json().catch(() => ({}));
-    const translated = data?.ok && data.card ? { ...card, ...data.card } : card;
-    translationCache.set(key, translated);
-    return translated;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 14000);
+    try {
+      const response = await fetch('/api/card-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          name: card.cardmarketName || card.originalName || card.visibleTitle || card.name || '',
+          originalName: card.originalName || card.visibleTitle || card.name || '',
+          cardmarketName: card.cardmarketName || '',
+          visibleTitle: card.visibleTitle || '',
+          number: card.fullNumber || card.searchNumber || card.number || '',
+          fullNumber: card.fullNumber || card.number || '',
+          searchNumber: card.searchNumber || String(card.number || '').split('/')[0],
+          setCode: card.setCode || '',
+          setName: card.setName || '',
+          languageCode: card.languageCode || languageCode(card),
+          language: card.language || card.languageGuess || ''
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      const match = Array.isArray(data.cards) ? data.cards[0] : null;
+      const translated = data?.ok && match ? translatedFromMatch(card, match) : card;
+      translationCache.set(key, translated);
+      return translated;
+    } catch {
+      translationCache.set(key, card);
+      return card;
+    } finally {
+      clearTimeout(timer);
+    }
   }
   function applyTranslatedSingle(card) {
     if (!card) return;
