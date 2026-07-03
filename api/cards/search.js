@@ -201,10 +201,14 @@ function scoreTcgdexCard(card, input, lang) {
   return score;
 }
 
+function tcgdexImage(card) {
+  return card.image ? `${card.image}/high.png` : '';
+}
+
 function tcgdexPublicCard(card, lang, score) {
   const setCode = card.setCode || card.set?.id || String(card.id || '').split('-')[0] || '';
   const setName = card.setName || card.set?.name || setCode;
-  const image = card.image ? `${card.image}/high.webp` : '';
+  const image = tcgdexImage(card);
   return {
     id: `tcgdex-${lang}-${card.id}`,
     sourceId: card.id || '',
