@@ -1,4 +1,4 @@
-// Keeps mobile input fields focusable even with late-loaded helper scripts.
+// Keeps mobile input fields focusable and makes the image picker reliable on phones.
 (function () {
   if (window.__cwMobileInputHelper) return;
   window.__cwMobileInputHelper = true;
@@ -55,6 +55,40 @@
     document.addEventListener('click', focusEventTarget, true);
   }
 
+  function installFilePicker() {
+    const input = document.getElementById('imageInput');
+    if (!input || input.dataset.cwMobilePicker === '1') return;
+
+    input.dataset.cwMobilePicker = '1';
+    input.disabled = false;
+    input.removeAttribute('capture');
+    input.setAttribute('accept', 'image/*');
+
+    const label = document.querySelector('label[for="imageInput"]');
+    if (label) {
+      label.classList.add('cwFilePick');
+      label.removeAttribute('for');
+      if (input.parentElement !== label) label.appendChild(input);
+    }
+
+    const openPicker = (event) => {
+      const picker = document.getElementById('imageInput');
+      if (!picker) return;
+      picker.disabled = false;
+      picker.style.pointerEvents = 'auto';
+      picker.value = '';
+      try { picker.click(); } catch {}
+      if (event) event.preventDefault();
+    };
+
+    const altButton = document.getElementById('pickImageBtn');
+    if (altButton && altButton.dataset.cwMobilePicker !== '1') {
+      altButton.dataset.cwMobilePicker = '1';
+      altButton.addEventListener('click', openPicker, true);
+      altButton.addEventListener('touchend', openPicker, true);
+    }
+  }
+
   function installStyle() {
     if (document.getElementById('cw-mobile-input-style')) return;
     const style = document.createElement('style');
@@ -71,6 +105,25 @@
         border-color: #7c3cff !important;
         box-shadow: 0 0 0 2px rgba(124,60,255,.25) !important;
       }
+      .cwFilePick {
+        position: relative !important;
+        overflow: hidden !important;
+        touch-action: manipulation !important;
+      }
+      .cwFilePick #imageInput {
+        position: absolute !important;
+        inset: 0 !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        min-height: 54px !important;
+        opacity: 0 !important;
+        pointer-events: auto !important;
+        z-index: 10 !important;
+        cursor: pointer !important;
+        font-size: 80px !important;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -79,6 +132,7 @@
     installStyle();
     markFields();
     installTouchFocus();
+    installFilePicker();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install); else install();
@@ -86,6 +140,11 @@
     install();
     setTimeout(markFields, 300);
     setTimeout(markFields, 1000);
+    setTimeout(installFilePicker, 300);
+    setTimeout(installFilePicker, 1000);
   });
-  new MutationObserver(() => setTimeout(markFields, 20)).observe(document.documentElement, { childList: true, subtree: true });
+  new MutationObserver(() => {
+    setTimeout(markFields, 20);
+    setTimeout(installFilePicker, 20);
+  }).observe(document.documentElement, { childList: true, subtree: true });
 })();
