@@ -2,7 +2,7 @@ import { getSql, hasSessionOrAdmin } from '../_auth.js';
 import { ensureCatalogSchema, normalizeCardNumber, normalizeSetCode, resolveSetCodes, searchCatalog, upsertPokemonCard } from '../_catalog.js';
 import { findLearnedAliasCards } from '../_catalog-learning.js';
 import { nameSearchVariants } from '../_name-aliases.js';
-import { expandedSetCodeVariants } from '../_set-aliases.js';
+import { canonicalSetSlugFor, expandedSetCodeVariants } from '../_set-aliases.js';
 
 const searchBuckets = globalThis.__cwCatalogSearchBuckets || new Map();
 globalThis.__cwCatalogSearchBuckets = searchBuckets;
@@ -238,22 +238,30 @@ function tcgdexImage(card, size = 'high') {
   return card?.image ? `${card.image}/${size}.png` : '';
 }
 
-function tcgdexPublicCard(card, lang, score) {
+function cardmarketNameForTcgdex(card, input) {
+  const preferred = input.cardmarketName || input.englishName || input.name || '';
+  const fallback = hasAsianText(card.name || '') ? preferred : (card.name || preferred);
+  return String(fallback || '')
+    .replace(/\s+ex$/i, '-ex')
+    .replace(/\s+EX$/i, '-EX')
+    .replace(/\s+V$/i, '-V')
+    .replace(/\s+GX$/i, '-GX')
+    .trim();
+}
+
+function tcgdexPublicCard(card, lang, score, input = {}) {
   const setCode = card.setCode || card.set?.id || String(card.id || '').split('-')[0] || '';
-  const setName = card.setName || card.set?.name || setCode;
+  const rawSetName = card.setName || card.set?.name || setCode;
+  const stableSetName = canonicalSetSlugFor(setCode, rawSetName, input.setCode, input.setName) || String(rawSetName || '').replace(/\s+/g, '-');
   return {
     id: `tcgdex-${lang}-${card.id}`,
     sourceId: card.id || '',
     name: card.name || '',
-    cardmarketName: String(card.name || '')
-      .replace(/\s+ex$/i, '-ex')
-      .replace(/\s+EX$/i, '-EX')
-      .replace(/\s+V$/i, '-V')
-      .replace(/\s+GX$/i, '-GX'),
+    cardmarketName: cardmarketNameForTcgdex(card, input),
     number: card.localId || card.number || '',
     setCode,
-    setName: String(setName || '').replace(/\s+/g, '-'),
-    cardmarketSetName: '',
+    setName: stableSetName,
+    cardmarketSetName: stableSetName,
     rarity: card.rarity || '',
     imageSmall: tcgdexImage(card, 'low'),
     imageLarge: tcgdexImage(card, 'high'),
@@ -287,7 +295,7 @@ async function fetchTcgdexCandidates(input, limit = 12) {
     const detail = await fetchTcgdexDetail(item.lang, item.card.id);
     const card = detail ? { ...item.card, ...detail } : item.card;
     const score = Math.max(item.score, scoreTcgdexCard(card, input, item.lang));
-    detailed.push(tcgdexPublicCard(card, item.lang, score));
+    detailed.push(tcgdexPublicCard(card, item.lang, score, input));
   }
   return detailed.sort((a, b) => b.score - a.score).slice(0, limit);
 }
