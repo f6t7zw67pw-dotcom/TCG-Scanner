@@ -104,8 +104,32 @@ function fold(value) {
     .trim();
 }
 
+function slug(value) {
+  return String(value || '')
+    .replace(/Pokémon/g, 'Pokemon')
+    .replace(/&/g, 'and')
+    .replace(/[/:]/g, ' ')
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 export function extraSetAliasesFor(code) {
   return EXTRA_SET_ALIASES[norm(code)] || [];
+}
+
+export function canonicalSetSlugFor(...values) {
+  const foldedValues = values.map(fold).filter(Boolean);
+  for (const value of values) {
+    const aliases = extraSetAliasesFor(value);
+    if (aliases.length) return slug(aliases[0]);
+  }
+  for (const [code, aliases] of Object.entries(EXTRA_SET_ALIASES)) {
+    const foldedAliases = [code, ...aliases].map(fold);
+    if (foldedValues.some((value) => foldedAliases.some((alias) => alias && (alias === value || alias.includes(value) || value.includes(alias))))) {
+      return slug(aliases[0] || code);
+    }
+  }
+  return '';
 }
 
 export function expandedSetCodeVariants(...values) {
