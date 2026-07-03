@@ -2,6 +2,7 @@ import { getSql, hasSessionOrAdmin } from '../_auth.js';
 import { ensureCatalogSchema, normalizeCardNumber, normalizeSetCode, resolveSetCodes, searchCatalog, upsertPokemonCard } from '../_catalog.js';
 import { findLearnedAliasCards } from '../_catalog-learning.js';
 import { nameSearchVariants } from '../_name-aliases.js';
+import { expandedSetCodeVariants } from '../_set-aliases.js';
 
 const searchBuckets = globalThis.__cwCatalogSearchBuckets || new Map();
 globalThis.__cwCatalogSearchBuckets = searchBuckets;
@@ -200,6 +201,20 @@ function nameMatchScore(cardName, names) {
   return 0;
 }
 
+function setMatchScore(card, input) {
+  const wanted = expandedSetCodeVariants(input.setCode, input.setName, input.set, input.expansion)
+    .map(fold)
+    .filter(Boolean);
+  if (!wanted.length) return 0;
+  const actual = expandedSetCodeVariants(card.setCode, card.set?.id, card.set?.name, String(card.id || '').split('-')[0])
+    .map(fold)
+    .filter(Boolean);
+  const direct = actual.some((value) => wanted.some((want) => value === want));
+  if (direct) return 28;
+  const loose = actual.some((value) => wanted.some((want) => value.includes(want) || want.includes(value)));
+  return loose ? 16 : 0;
+}
+
 function scoreTcgdexCard(card, input, lang) {
   const names = buildNameVariants(input).map(fold).filter(Boolean);
   const rawName = fold(input.name || input.originalName || input.cardmarketName || input.englishName || input.visibleTitle || '');
@@ -207,16 +222,12 @@ function scoreTcgdexCard(card, input, lang) {
   const cardName = fold(card.name || '');
   const number = comparableNumber(input.number || input.fullNumber || input.searchNumber);
   const localId = comparableNumber(card.localId || card.number || '');
-  const setCode = fold(input.setCode || '');
-  const setName = fold(input.setName || '');
-  const cardSet = fold(card.setCode || card.set?.id || card.set?.name || String(card.id || '').split('-')[0]);
   const nameScore = nameMatchScore(cardName, names);
   if (names.length && nameScore <= 0) return 0;
   let score = nameScore;
 
   if (number && localId && number === localId) score += 34;
-  if (setCode && cardSet && (cardSet === setCode || cardSet.includes(setCode) || setCode.includes(cardSet))) score += 24;
-  if (setName && cardSet && (cardSet.includes(setName) || setName.includes(cardSet))) score += 12;
+  score += setMatchScore(card, input);
   if (lang === 'ja' || lang === 'ko' || lang.startsWith('zh') || lang === 'cn') score += 8;
   if (!names.length && number && localId === number) score += 24;
   if (tcgdexImage(card, 'low')) score += 3;
