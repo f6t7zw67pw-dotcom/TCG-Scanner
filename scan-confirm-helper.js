@@ -3,16 +3,27 @@
   let latestScan = null;
   let loading = false;
 
+  const JP_NAME_OVERRIDES = {
+    'ママンボウ': 'Alomomola'
+  };
+
   function $(id) { return document.getElementById(id); }
-  function toast(text) {
-    if (typeof window.toast === 'function') window.toast(text);
-    else console.log(text);
+  function text(value) { return String(value || '').trim(); }
+  function toast(textValue) {
+    if (typeof window.toast === 'function') window.toast(textValue);
+    else console.log(textValue);
   }
   function escapeHtml(value) {
     return String(value || '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
   }
   function escapeAttr(value) {
     return escapeHtml(value).replace(/'/g, '&#39;');
+  }
+  function hasAsianText(value) {
+    return /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/.test(String(value || ''));
+  }
+  function latinFallbackName(value) {
+    return JP_NAME_OVERRIDES[text(value)] || '';
   }
   function padNumber(value) {
     const raw = String(value || '').trim().toUpperCase();
@@ -28,7 +39,7 @@
   }
   function inferVersion(card) {
     const rarity = String(card?.rarity || card?.cardType || '').toLowerCase();
-    const name = String(card?.name || card?.originalName || '').toLowerCase();
+    const name = String(card?.name || card?.originalName || card?.cardmarketName || '').toLowerCase();
     if (card?.cardVersion) return card.cardVersion;
     if (rarity.includes('special illustration')) return 'V3';
     if (rarity.includes('illustration') || rarity.includes('full art')) return 'V2';
@@ -50,26 +61,73 @@
     const card = Array.isArray(scan?.cards) ? scan.cards[0] : null;
     return card || {};
   }
+  function cardmarketName(name) {
+    if (typeof window.buildCMName === 'function') {
+      try { return window.buildCMName(name) || name; } catch {}
+    }
+    return String(name || '')
+      .replace(/\s+ex$/i, '-ex')
+      .replace(/\s+EX$/i, '-EX')
+      .replace(/\s+V$/i, '-V')
+      .replace(/\s+GX$/i, '-GX');
+  }
+  function stableOriginalName(card) {
+    return text(card?.originalName || card?.visibleTitle || card?.name || $('originalName')?.value || '');
+  }
+  function stableCardmarketName(card) {
+    const direct = text(card?.cardmarketName);
+    if (direct && !hasAsianText(direct)) return cardmarketName(direct);
+    const english = text(card?.englishName);
+    if (english && !hasAsianText(english)) return cardmarketName(english);
+    const mapped = latinFallbackName(card?.cardmarketName) || latinFallbackName(card?.name) || latinFallbackName(card?.originalName) || latinFallbackName(card?.visibleTitle);
+    if (mapped) return cardmarketName(mapped);
+    const dom = text($('cardmarketName')?.value);
+    if (dom && !hasAsianText(dom)) return cardmarketName(dom);
+    return cardmarketName(direct || english || card?.name || '');
+  }
   function candidatePayload(scan) {
     const card = scanInputFromResult(scan);
+    const originalName = stableOriginalName(card);
+    const cmName = stableCardmarketName(card);
+    const fullNumber = text(card.fullNumber || card.number || $('fullNumber')?.value || $('searchNumber')?.value || '');
+    const search = text(card.searchNumber || searchNumber(fullNumber) || $('searchNumber')?.value || '');
     return {
-      name: card.originalName || card.name || card.cardmarketName || $('originalName')?.value || $('cardmarketName')?.value || '',
-      number: card.fullNumber || card.searchNumber || card.number || $('fullNumber')?.value || $('searchNumber')?.value || '',
+      name: cmName || originalName,
+      originalName,
+      cardmarketName: cmName,
+      englishName: !hasAsianText(cmName) ? cmName : text(card.englishName || ''),
+      visibleTitle: text(card.visibleTitle || (hasAsianText(originalName) ? originalName : '')),
+      number: fullNumber || search,
+      fullNumber,
+      searchNumber: search,
       setCode: card.setCode || $('setCode')?.value || '',
       setName: card.setName || $('setName')?.value || '',
       cardType: card.cardType || '',
-      supertype: card.cardType || ''
+      supertype: card.cardType || '',
+      languageCode: card.languageCode || '',
+      language: card.language || '',
+      languageGuess: card.languageGuess || card.language || ''
     };
   }
   async function apiFetch(path, options) {
-    const response = await fetch(path, {
-      credentials: 'same-origin',
-      ...(options || {}),
-      headers: { 'Content-Type': 'application/json', ...(options?.headers || {}) }
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || data.ok === false) throw new Error(data.error || `Fehler ${response.status}`);
-    return data;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 16000);
+    try {
+      const response = await fetch(path, {
+        credentials: 'same-origin',
+        ...(options || {}),
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', ...(options?.headers || {}) }
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.ok === false) throw new Error(data.error || `Fehler ${response.status}`);
+      return data;
+    } catch (err) {
+      if (err?.name === 'AbortError') throw new Error('Suche dauert zu lange. Bitte nochmal Treffer suchen druecken.');
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   }
   function addStyle() {
     if ($('cw-confirm-style')) return;
@@ -105,31 +163,23 @@
     anchor.insertAdjacentElement('afterend', box);
     return box;
   }
-  function status(text, type) {
+  function status(textValue, type) {
     ensureBox();
     const el = $('cwConfirmStatus');
     if (!el) return;
-    el.textContent = text;
+    el.textContent = textValue;
     el.className = `cwConfirmStatus ${type || ''}`.trim();
   }
-  function cardmarketName(name) {
-    if (typeof window.buildCMName === 'function') {
-      try { return window.buildCMName(name) || name; } catch {}
-    }
-    return String(name || '')
-      .replace(/\s+ex$/i, '-ex')
-      .replace(/\s+EX$/i, '-EX')
-      .replace(/\s+V$/i, '-V')
-      .replace(/\s+GX$/i, '-GX');
-  }
   function applyCandidate(card) {
-    const full = padNumber(card.number || '');
-    trigger('originalName', card.name || '');
-    trigger('cardmarketName', card.cardmarketName || cardmarketName(card.name));
+    const full = padNumber(card.number || card.fullNumber || '');
+    const originalName = stableOriginalName(card);
+    const cmName = stableCardmarketName(card);
+    trigger('originalName', originalName || card.name || '');
+    trigger('cardmarketName', cmName || cardmarketName(card.name));
     trigger('fullNumber', full);
     trigger('searchNumber', searchNumber(full));
     trigger('setCode', card.setCode || '');
-    trigger('setName', card.setName || '');
+    trigger('setName', card.cardmarketSetName || card.setName || '');
     const version = inferVersion(card);
     if (version) {
       document.querySelectorAll('#typeChips .chip').forEach((chip) => chip.classList.toggle('active', chip.dataset.ver === version));
@@ -139,18 +189,19 @@
     if (typeof window.buildUrl === 'function') window.buildUrl();
   }
   function collectionCardFromCandidate(card) {
-    const full = padNumber(card.number || $('fullNumber')?.value || '');
+    const full = padNumber(card.number || card.fullNumber || $('fullNumber')?.value || '');
+    const cmName = stableCardmarketName(card);
     const url = typeof window.buildUrl === 'function' ? window.buildUrl() : ($('cmUrl')?.textContent || '');
     return {
       id: Date.now(),
       catalogCardId: card.id || '',
       sourceId: card.sourceId || '',
-      originalName: card.name || $('originalName')?.value || '',
-      cardmarketName: card.cardmarketName || cardmarketName(card.name || $('cardmarketName')?.value || ''),
+      originalName: stableOriginalName(card) || $('originalName')?.value || '',
+      cardmarketName: cmName || cardmarketName(card.name || $('cardmarketName')?.value || ''),
       fullNumber: full,
       searchNumber: searchNumber(full),
       setCode: card.setCode || $('setCode')?.value || '',
-      setName: card.setName || $('setName')?.value || '',
+      setName: card.cardmarketSetName || card.setName || $('setName')?.value || '',
       rarity: card.rarity || '',
       price: String($('sellPrice')?.value || '').replace('.', ','),
       ebayPrice: String($('ebayPrice')?.value || '').replace('.', ','),
@@ -185,18 +236,30 @@
   }
   async function confirmScan(card, save) {
     applyCandidate(card);
-    if (save) saveToCollection(collectionCardFromCandidate(card));
-    if (latestScan?.scanId) {
-      await apiFetch('/api/scans/confirm', {
-        method: 'POST',
-        body: JSON.stringify({ scanId: latestScan.scanId, cardId: card.id || '', card })
-      });
+    if (!save) {
+      status('Treffer uebernommen. Nicht gespeichert und kein Server-Confirm ausgefuehrt.', 'ok');
+      toast('Treffer uebernommen');
+      return;
     }
-    if (save && window.cwCloudSync?.pushCloud) {
+
+    saveToCollection(collectionCardFromCandidate(card));
+    let confirmOk = true;
+    if (latestScan?.scanId) {
+      try {
+        await apiFetch('/api/scans/confirm', {
+          method: 'POST',
+          body: JSON.stringify({ scanId: latestScan.scanId, cardId: card.id || '', card })
+        });
+      } catch (err) {
+        confirmOk = false;
+        console.warn('Scan-Confirm konnte nicht gespeichert werden:', err);
+      }
+    }
+    if (window.cwCloudSync?.pushCloud) {
       try { await window.cwCloudSync.pushCloud(true); } catch {}
     }
-    status(save ? 'Treffer bestaetigt, gespeichert und mit dem Scan verknuepft.' : 'Treffer uebernommen und Scan bestaetigt.', 'ok');
-    toast(save ? 'Karte bestaetigt und gespeichert' : 'Treffer bestaetigt');
+    status(confirmOk ? 'Treffer bestaetigt, gespeichert und mit dem Scan verknuepft.' : 'Treffer gespeichert. Server-Verknuepfung konnte gerade nicht bestaetigt werden.', confirmOk ? 'ok' : 'warn');
+    toast(confirmOk ? 'Karte bestaetigt und gespeichert' : 'Karte gespeichert');
     if (window.cwScanHistory?.loadHistory) setTimeout(() => window.cwScanHistory.loadHistory().catch(() => {}), 300);
   }
   function renderCandidates(cards) {
@@ -211,8 +274,8 @@
       <div class="cwCandidate" data-index="${index}">
         ${card.imageSmall || card.imageLarge ? `<img src="${escapeAttr(card.imageSmall || card.imageLarge)}" alt="">` : '<img alt="">'}
         <div>
-          <b>${escapeHtml(card.name || 'Unbekannte Karte')}</b>
-          <div class="small">${escapeHtml(card.setName || '-')} · ${escapeHtml(card.setCode || '-')} · Nr. ${escapeHtml(card.number || '-')}</div>
+          <b>${escapeHtml(stableCardmarketName(card) || card.name || 'Unbekannte Karte')}</b>
+          <div class="small">${escapeHtml(card.cardmarketSetName || card.setName || '-')} · ${escapeHtml(card.setCode || '-')} · Nr. ${escapeHtml(card.number || '-')}</div>
           <div class="small">${escapeHtml(card.rarity || '')}</div>
           <span class="cwScorePill">${Math.round(Number(card.score || 0))}% Treffer</span>
           <div class="actions" style="margin-top:8px">
@@ -224,7 +287,7 @@
     `).join('');
     target.querySelectorAll('.cwCandidate').forEach((el) => {
       const card = cards[Number(el.dataset.index)];
-      el.querySelector('.cwApplyCandidate').onclick = () => confirmScan(card, false).catch((err) => status(err.message || 'Bestaetigung fehlgeschlagen.', 'warn'));
+      el.querySelector('.cwApplyCandidate').onclick = () => confirmScan(card, false).catch((err) => status(err.message || 'Uebernehmen fehlgeschlagen.', 'warn'));
       el.querySelector('.cwSaveCandidate').onclick = () => confirmScan(card, true).catch((err) => status(err.message || 'Speichern fehlgeschlagen.', 'warn'));
     });
   }
@@ -233,7 +296,7 @@
     loading = true;
     try {
       status('Katalogtreffer werden gesucht...');
-      const data = await apiFetch('/api/cards/search', {
+      const data = await apiFetch('/api/card-search', {
         method: 'POST',
         body: JSON.stringify(candidatePayload(scan))
       });
@@ -241,6 +304,7 @@
       renderCandidates(data.cards || []);
       status(`${(data.cards || []).length} moegliche Treffer gefunden. Bitte richtigen Treffer bestaetigen.`, (data.cards || []).length ? 'ok' : 'warn');
     } catch (err) {
+      renderCandidates([]);
       status(err.message || 'Katalogtreffer konnten nicht geladen werden.', 'warn');
     } finally {
       loading = false;
