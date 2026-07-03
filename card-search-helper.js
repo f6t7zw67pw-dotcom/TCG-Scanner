@@ -185,22 +185,37 @@
     const originalFetch = window.fetch.bind(window);
     const patched = async function (input, init) {
       const url = typeof input === 'string' ? input : input?.url || '';
-      if (String(url).includes('/api/card-search') && init?.body) {
+      const isCardSearch = String(url).includes('/api/card-search');
+      let timer = null;
+      let controller = null;
+      if (isCardSearch && init?.body) {
         try {
           const body = typeof init.body === 'string' ? JSON.parse(init.body) : init.body;
           init = { ...init, body: JSON.stringify(enrichSearchBody(body)) };
         } catch {}
       }
-      const response = await originalFetch(input, init);
-      if (String(url).includes('/api/card-search')) {
-        try {
-          window.__cwLastCardSearchResponse = await response.clone().json();
-          setTimeout(enhanceMatchUi, 80);
-          setTimeout(enhanceMatchUi, 350);
-        } catch {}
+      if (isCardSearch && !init?.signal && typeof AbortController !== 'undefined') {
+        controller = new AbortController();
+        timer = setTimeout(() => controller.abort(), 18000);
+        init = { ...(init || {}), signal: controller.signal };
       }
-      if (String(url).includes('/api/scan')) autoSearchAfterScan();
-      return response;
+      try {
+        const response = await originalFetch(input, init);
+        if (isCardSearch) {
+          try {
+            window.__cwLastCardSearchResponse = await response.clone().json();
+            setTimeout(enhanceMatchUi, 80);
+            setTimeout(enhanceMatchUi, 350);
+          } catch {}
+        }
+        if (String(url).includes('/api/scan')) autoSearchAfterScan();
+        return response;
+      } catch (err) {
+        if (isCardSearch && err?.name === 'AbortError') throw new Error('Treffersuche dauert zu lange. Bitte nochmal druecken.');
+        throw err;
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
     };
     patched.__cwCardSearchPatched = true;
     window.fetch = patched;
