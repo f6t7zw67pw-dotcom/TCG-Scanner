@@ -2,6 +2,7 @@
 (function () {
   const BASE_LOADER = '/api/loader-base';
   const HELPER = 'cardmarket-helper.js';
+  const SEARCH_HELPER = 'card-search-helper.js';
 
   function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -309,6 +310,7 @@
       nudgeLoadHandlers();
       return loadScript(HELPER);
     })
+    .then(() => loadScript(SEARCH_HELPER))
     .then(() => {
       installNumberFixes();
       installSaveResetHandlers();
