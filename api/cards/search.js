@@ -76,6 +76,10 @@ function buildNameVariants(input) {
   return variants.slice(0, 18);
 }
 
+function hasUsefulName(input) {
+  return buildNameVariants(input).some((name) => fold(name).length >= 2);
+}
+
 function buildPokemonQueries(input, setCodes = []) {
   const names = buildNameVariants(input);
   const bases = Array.from(new Set(names.map(baseName).filter(Boolean)));
@@ -85,6 +89,7 @@ function buildPokemonQueries(input, setCodes = []) {
   const queries = [];
   const add = (query) => { if (query && !queries.includes(query)) queries.push(query); };
   const withCodes = codes.length ? codes : [''];
+  const namedSearch = names.length > 0 || bases.length > 0;
 
   for (const setCode of withCodes) {
     for (const name of names) {
@@ -95,7 +100,7 @@ function buildPokemonQueries(input, setCodes = []) {
       if (base && number && setCode) add(`name:${quote(base)} number:${number} set.ptcgoCode:${setCode}`);
       if (base && setCode) add(`name:${quote(base)} set.ptcgoCode:${setCode}`);
     }
-    if (number && setCode) add(`number:${number} set.ptcgoCode:${setCode}`);
+    if (!namedSearch && number && setCode) add(`number:${number} set.ptcgoCode:${setCode}`);
   }
 
   for (const name of names) {
@@ -107,8 +112,8 @@ function buildPokemonQueries(input, setCodes = []) {
     if (base && number) add(`name:${quote(base)} number:${number}`);
     if (base) add(`name:${quote(base)}`);
   }
-  if (number) add(`number:${number}`);
-  for (const setCode of codes) add(`set.ptcgoCode:${setCode}`);
+  if (!namedSearch && number) add(`number:${number}`);
+  if (!namedSearch) for (const setCode of codes) add(`set.ptcgoCode:${setCode}`);
   return queries.slice(0, 80);
 }
 
@@ -136,16 +141,20 @@ function hasAsianText(value) {
   return /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/.test(String(value || ''));
 }
 
+function uniqueList(values) {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
 function tcgdexLanguages(input) {
   const configured = String(process.env.TCGDEX_LANGS || '').split(',').map((v) => v.trim()).filter(Boolean);
   if (configured.length) return configured;
   const guess = fold(`${input.languageGuess || ''} ${input.language || ''} ${input.languageCode || ''}`);
   const text = `${input.name || ''} ${input.originalName || ''} ${input.cardmarketName || ''} ${input.visibleTitle || ''}`;
-  if (String(input.languageCode || '') === '7' || guess.includes('japan')) return ['ja'];
-  if (String(input.languageCode || '') === '8' || guess.includes('korea')) return ['ko'];
-  if (guess.includes('chinese') || guess.includes('china') || guess.includes('cn') || guess.includes('zh')) return ['zh-tw', 'zh-cn', 'cn'];
-  if (hasAsianText(text)) return ['ja', 'zh-tw', 'zh-cn', 'ko', 'cn'];
-  return ['ja', 'zh-tw', 'zh-cn', 'ko'];
+  if (String(input.languageCode || '') === '7' || guess.includes('japan')) return uniqueList(['ja', 'en']);
+  if (String(input.languageCode || '') === '8' || guess.includes('korea')) return uniqueList(['ko', 'en']);
+  if (guess.includes('chinese') || guess.includes('china') || guess.includes('cn') || guess.includes('zh')) return uniqueList(['zh-tw', 'zh-cn', 'cn', 'en']);
+  if (hasAsianText(text)) return uniqueList(['ja', 'zh-tw', 'zh-cn', 'ko', 'cn', 'en']);
+  return uniqueList(['en', 'ja', 'zh-tw', 'zh-cn', 'ko']);
 }
 
 function comparableNumber(value) {
@@ -182,9 +191,9 @@ function scoreTcgdexCard(card, input, lang) {
   const cardSet = fold(card.setCode || card.set?.id || card.set?.name || String(card.id || '').split('-')[0]);
   let score = 0;
 
-  if (cardName && names.some((name) => name && cardName === name)) score += 55;
-  else if (cardName && names.some((name) => name && (cardName.includes(name) || name.includes(cardName)))) score += 32;
-  if (number && localId && number === localId) score += 38;
+  if (cardName && names.some((name) => name && cardName === name)) score += 60;
+  else if (cardName && names.some((name) => name && (cardName.includes(name) || name.includes(cardName)))) score += 34;
+  if (number && localId && number === localId) score += 34;
   if (setCode && cardSet && (cardSet === setCode || cardSet.includes(setCode) || setCode.includes(cardSet))) score += 24;
   if (setName && cardSet && (cardSet.includes(setName) || setName.includes(cardSet))) score += 12;
   if (lang === 'ja' || lang === 'ko' || lang.startsWith('zh') || lang === 'cn') score += 8;
@@ -261,6 +270,19 @@ function publicCard(card) {
   };
 }
 
+function cardMatchesRequestedName(card, input) {
+  const names = buildNameVariants(input).map((name) => fold(baseName(name))).filter(Boolean);
+  if (!names.length) return true;
+  const cardName = fold(baseName(card.name || card.cardmarketName || ''));
+  return names.some((name) => cardName === name || cardName.includes(name) || name.includes(cardName));
+}
+
+function filterNameMismatches(cards, input) {
+  if (!hasUsefulName(input)) return cards;
+  const filtered = cards.filter((card) => cardMatchesRequestedName(card, input));
+  return filtered.length ? filtered : [];
+}
+
 function catalogAttempts(input) {
   const names = buildNameVariants(input);
   const rawName = input.name || input.originalName || input.cardmarketName || input.englishName || input.visibleTitle || '';
@@ -293,7 +315,7 @@ async function flexibleCatalogSearch(sql, input, limit = 12) {
     addRows(rows);
     if (merged.length >= limit && Number(merged[0]?.score || 0) >= 70) break;
   }
-  return merged.sort((a, b) => b.score - a.score).slice(0, limit);
+  return filterNameMismatches(merged.sort((a, b) => b.score - a.score), input).slice(0, limit);
 }
 
 export default async function handler(req, res) {
@@ -316,8 +338,9 @@ export default async function handler(req, res) {
     let hydrated = false;
     let tcgdexHydrated = false;
 
-    if (cards.length < 3 || Number(cards[0]?.score || 0) < 70) {
-      const externalCards = await fetchPokemonCandidates(input, setCodes);
+    const shouldUseExternal = cards.length < 3 || Number(cards[0]?.score || 0) < 70;
+    if (shouldUseExternal) {
+      const externalCards = filterNameMismatches(await fetchPokemonCandidates(input, setCodes), input);
       for (const card of externalCards) await upsertPokemonCard(sql, card);
       hydrated = externalCards.length > 0;
       cards = await flexibleCatalogSearch(sql, input, 12);
