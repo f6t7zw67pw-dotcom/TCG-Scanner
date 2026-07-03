@@ -1,13 +1,29 @@
-// Sends richer scan context to the catalog search and softens broken image fallbacks.
+// Sends richer scan context to the catalog search, auto-starts matches after scan and stabilizes Cardmarket fields.
 (function () {
   if (window.__cwCardSearchHelper) return;
   window.__cwCardSearchHelper = true;
+
+  const JP_NAME_OVERRIDES = {
+    'ママンボウ': 'Alomomola'
+  };
+  const englishNameCache = new Map();
 
   function text(value) {
     return String(value || '').trim();
   }
   function hasAsianText(value) {
     return /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/.test(String(value || ''));
+  }
+  function toCardmarketName(value) {
+    return text(value)
+      .replace(/\s+ex$/i, '-ex')
+      .replace(/\s+EX$/i, '-EX')
+      .replace(/\s+V$/i, '-V')
+      .replace(/\s+GX$/i, '-GX');
+  }
+  function latinFallbackName(value) {
+    const clean = text(value);
+    return JP_NAME_OVERRIDES[clean] || '';
   }
   function activeLanguageCode() {
     return text(document.querySelector('#langChips .chip.active')?.dataset?.code || '');
@@ -40,8 +56,10 @@
     const next = { ...(body || {}) };
 
     const originalName = text(next.originalName || dom.originalName || scan.originalName || scan.visibleTitle || next.name);
-    const cardmarketName = text(next.cardmarketName || dom.cardmarketName || scan.cardmarketName || scan.englishName || next.name);
-    const englishName = text(next.englishName || scan.englishName || (likelyEnglish(cardmarketName) ? cardmarketName : ''));
+    const rawCardmarket = text(next.cardmarketName || dom.cardmarketName || scan.cardmarketName || scan.englishName || next.name);
+    const mapped = latinFallbackName(rawCardmarket) || latinFallbackName(originalName);
+    const cardmarketName = hasAsianText(rawCardmarket) && mapped ? mapped : rawCardmarket;
+    const englishName = text(next.englishName || scan.englishName || mapped || (likelyEnglish(cardmarketName) ? cardmarketName : ''));
     const visibleTitle = text(next.visibleTitle || scan.visibleTitle || (hasAsianText(originalName) ? originalName : ''));
     const fullNumber = text(next.fullNumber || dom.fullNumber || scan.fullNumber || next.number);
     const searchNumber = text(next.searchNumber || dom.searchNumber || scan.searchNumber || fullNumber.split('/')[0] || next.number);
@@ -61,6 +79,107 @@
     next.languageGuess = text(next.languageGuess || scan.languageGuess || scan.language);
     return next;
   }
+
+  async function fetchJson(url) {
+    const response = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!response.ok) return null;
+    return response.json().catch(() => null);
+  }
+  async function englishNameFromPokemonSpecies(dexId) {
+    if (!dexId) return '';
+    const key = `species:${dexId}`;
+    if (englishNameCache.has(key)) return englishNameCache.get(key);
+    const data = await fetchJson(`https://pokeapi.co/api/v2/pokemon-species/${encodeURIComponent(dexId)}`);
+    const name = text((data?.names || []).find((item) => item.language?.name === 'en')?.name || data?.name || '');
+    const clean = name ? name.charAt(0).toUpperCase() + name.slice(1).replace(/-/g, ' ') : '';
+    englishNameCache.set(key, clean);
+    return clean;
+  }
+  async function englishNameForCard(card) {
+    if (!card) return '';
+    const direct = text(card.cardmarketName || card.englishName || '');
+    if (direct && !hasAsianText(direct)) return direct;
+    const local = latinFallbackName(card.name) || latinFallbackName(card.cardmarketName);
+    if (local) return local;
+
+    const sourceId = text(card.sourceId || '').replace(/^tcgdex-[a-z-]+-/i, '');
+    if (!sourceId) return '';
+    const key = `tcgdex-en:${sourceId}`;
+    if (englishNameCache.has(key)) return englishNameCache.get(key);
+
+    const detail = await fetchJson(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(sourceId)}`);
+    let name = text(detail?.name || '');
+    if (!name || hasAsianText(name)) {
+      const dexId = Array.isArray(detail?.dexId) ? detail.dexId[0] : detail?.dexId;
+      name = await englishNameFromPokemonSpecies(dexId);
+    }
+    englishNameCache.set(key, name || '');
+    return name || '';
+  }
+  function selectedMatchCard(button) {
+    const item = button?.closest('.matchItem');
+    const box = button?.closest('.matchBox');
+    if (!item || !box) return null;
+    const items = Array.from(box.querySelectorAll('.matchItem'));
+    const index = items.indexOf(item);
+    const cards = Array.isArray(window.__cwLastCardSearchResponse?.cards) ? window.__cwLastCardSearchResponse.cards : [];
+    return index >= 0 ? cards[index] : null;
+  }
+  function setInputValue(input, value) {
+    if (!input || !value) return;
+    input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  async function repairCardmarketFields(card) {
+    if (!card) return;
+    const cardmarket = document.getElementById('cardmarketName');
+    const setName = document.getElementById('setName');
+    const current = text(cardmarket?.value);
+    const english = await englishNameForCard(card);
+    if (english && (!current || hasAsianText(current) || current === text(card.name))) {
+      setInputValue(cardmarket, toCardmarketName(english));
+    }
+    if (setName && card.cardmarketSetName && setName.value !== card.cardmarketSetName) {
+      setInputValue(setName, card.cardmarketSetName);
+    }
+    if (typeof window.buildUrl === 'function') window.buildUrl();
+  }
+  function installMatchRepair() {
+    if (document.documentElement.dataset.cwMatchRepair === '1') return;
+    document.documentElement.dataset.cwMatchRepair = '1';
+    document.addEventListener('click', (event) => {
+      const button = event.target.closest('.matchItem .use');
+      if (!button) return;
+      const card = selectedMatchCard(button);
+      setTimeout(() => repairCardmarketFields(card), 40);
+      setTimeout(() => repairCardmarketFields(card), 450);
+    }, true);
+  }
+
+  let lastAutoSearchSignature = '';
+  function searchSignature() {
+    const dom = singleDomContext();
+    return [dom.originalName, dom.cardmarketName, dom.fullNumber, dom.searchNumber, dom.setCode, dom.setName].join('|');
+  }
+  function shouldAutoSearch() {
+    const button = document.getElementById('singleTcgSearchBtn');
+    const matches = document.getElementById('singleMatches');
+    const sig = searchSignature();
+    if (!button || !sig.replace(/\|/g, '')) return false;
+    if (sig === lastAutoSearchSignature) return false;
+    if (matches && /Treffer aus|Suche Treffer|Automatische Treffer/.test(matches.textContent || '')) return false;
+    return true;
+  }
+  function autoSearchAfterScan() {
+    [900, 1500, 2400, 3600].forEach((delay) => setTimeout(() => {
+      if (!shouldAutoSearch()) return;
+      const button = document.getElementById('singleTcgSearchBtn');
+      lastAutoSearchSignature = searchSignature();
+      button?.click();
+    }, delay));
+  }
+
   function installFetchPatch() {
     if (window.fetch.__cwCardSearchPatched) return;
     const originalFetch = window.fetch.bind(window);
@@ -80,6 +199,7 @@
           setTimeout(enhanceMatchUi, 350);
         } catch {}
       }
+      if (String(url).includes('/api/scan')) autoSearchAfterScan();
       return response;
     };
     patched.__cwCardSearchPatched = true;
@@ -133,6 +253,7 @@
   function install() {
     installFetchPatch();
     installObserver();
+    installMatchRepair();
     enhanceMatchUi();
     loadHelper('set-db-helper.js', '__cwSetDbHelper', 'cw-set-db-helper');
     loadHelper('mobile-input-helper.js', '__cwMobileInputHelper', 'cw-mobile-input-helper');
