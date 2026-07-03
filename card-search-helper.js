@@ -117,12 +117,12 @@
     });
     document.querySelectorAll('.matchItem img').forEach(attachImageFallback);
   }
-  function loadSetDbHelper() {
-    if (window.__cwSetDbHelper || document.querySelector('script[data-cw-set-db-helper="1"]')) return;
+  function loadHelper(src, flag, attr) {
+    if (window[flag] || document.querySelector(`script[data-${attr}="1"]`)) return;
     const script = document.createElement('script');
-    script.src = 'set-db-helper.js';
+    script.src = src;
     script.async = false;
-    script.dataset.cwSetDbHelper = '1';
+    script.dataset[attr.replace(/-([a-z])/g, (_, ch) => ch.toUpperCase())] = '1';
     document.head.appendChild(script);
   }
   function installObserver() {
@@ -134,7 +134,8 @@
     installFetchPatch();
     installObserver();
     enhanceMatchUi();
-    loadSetDbHelper();
+    loadHelper('set-db-helper.js', '__cwSetDbHelper', 'cw-set-db-helper');
+    loadHelper('mobile-input-helper.js', '__cwMobileInputHelper', 'cw-mobile-input-helper');
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install); else install();
