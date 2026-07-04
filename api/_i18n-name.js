@@ -1,4 +1,5 @@
 import { canonicalSetSlugFor, expandedSetCodeVariants } from './_set-aliases.js';
+import { lookupPokemonNameAlias } from './_pokemon-name-aliases.js';
 
 const tcgdexListCache = globalThis.__cwI18nTcgdexListCache || new Map();
 globalThis.__cwI18nTcgdexListCache = tcgdexListCache;
@@ -106,6 +107,14 @@ function staticAlias(input) {
     if (STATIC_FOREIGN_NAME_ALIASES[name]) return STATIC_FOREIGN_NAME_ALIASES[name];
   }
   return '';
+}
+
+async function databaseAlias(input) {
+  for (const name of inputNames(input)) {
+    const row = await lookupPokemonNameAlias(name).catch(() => null);
+    if (row?.englishName) return row;
+  }
+  return null;
 }
 
 function languageCandidates(input) {
@@ -235,22 +244,25 @@ async function findForeignTranslation(input) {
 
 export async function enrichForeignNameInput(input = {}) {
   const original = { ...input };
-  const alias = staticAlias(original);
+  const dbAlias = await databaseAlias(original);
+  const alias = text(dbAlias?.englishName || staticAlias(original));
   const hasForeign = hasAsianText(inputNames(original).join(' '));
   if (!alias && !hasForeign) return original;
 
   let translated = null;
-  try {
-    translated = await findForeignTranslation(original);
-  } catch {
-    translated = null;
+  if (!alias || hasForeign) {
+    try {
+      translated = await findForeignTranslation(original);
+    } catch {
+      translated = null;
+    }
   }
 
   const englishName = text(translated?.englishName || alias);
   if (!englishName) return original;
 
   const existingLatin = looksLatinName(original.cardmarketName) ? text(original.cardmarketName) : '';
-  const originalName = text(original.originalName || original.visibleTitle || (hasAsianText(original.name) ? original.name : '') || translated?.originalName || '');
+  const originalName = text(original.originalName || original.visibleTitle || (hasAsianText(original.name) ? original.name : '') || translated?.originalName || dbAlias?.alias || '');
   const cardmarketName = toCardmarketName(existingLatin || translated?.cardmarketName || englishName);
 
   return {
@@ -266,8 +278,8 @@ export async function enrichForeignNameInput(input = {}) {
     setCode: original.setCode || translated?.setCode || '',
     setName: original.setName || translated?.setName || '',
     cardmarketSetName: original.cardmarketSetName || translated?.cardmarketSetName || translated?.setName || '',
-    i18nSource: translated?.source || 'i18n-static-alias',
-    i18nSourceId: translated?.sourceId || '',
-    i18nScore: translated?.score || (alias ? 80 : 0)
+    i18nSource: translated?.source || dbAlias?.source || 'i18n-static-alias',
+    i18nSourceId: translated?.sourceId || (dbAlias?.pokemonId ? String(dbAlias.pokemonId) : ''),
+    i18nScore: translated?.score || (dbAlias ? 95 : alias ? 80 : 0)
   };
 }
