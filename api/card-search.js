@@ -41,12 +41,12 @@ function fastCandidate(input) {
 
 export default async function handler(req, res) {
   if (req.method === 'POST' && req.body && typeof req.body === 'object') {
-    req.body = await enrichForeignNameInput(req.body);
     if (req.body.fast === true || req.body.fast === 'true') {
       res.setHeader('Cache-Control', 'no-store');
       const card = fastCandidate(req.body);
       return res.status(200).json({ ok: true, source: 'fast-scan', setCodes: req.body.setCode ? [req.body.setCode] : [], cards: card ? [card] : [] });
     }
+    req.body = await enrichForeignNameInput(req.body);
   }
   return searchHandler(req, res);
 }
