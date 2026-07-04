@@ -1,7 +1,7 @@
 import searchHandler from './cards/search.js';
 import { enrichForeignNameInput, hasAsianText } from './_i18n-name.js';
 import { getSql, hasAdminToken } from './_auth.js';
-import { ensurePokemonNameAliasSchema, lookupPokemonNameAlias, upsertPokemonNameAliases } from './_pokemon-name-aliases.js';
+import { ensurePokemonNameAliasSchema, listPokemonNameAliases, lookupPokemonNameAlias, upsertPokemonNameAliases } from './_pokemon-name-aliases.js';
 
 export const config = { maxDuration: 60 };
 
@@ -124,11 +124,22 @@ async function syncPokemonAliases(req, res) {
   });
 }
 
+async function listAliases(req, res) {
+  const sql = getSql();
+  if (!sql) return res.status(503).json({ ok: false, error: 'DATABASE_URL fehlt.' });
+  const language = text(req.body?.language || req.query.language || 'ja-hrkt').toLowerCase();
+  const aliases = await listPokemonNameAliases({ language, limit: req.body?.limit || 1200 }, sql);
+  return res.status(200).json({ ok: true, source: 'pokemon-name-db', language, count: aliases.length, aliases });
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'POST' && req.body && typeof req.body === 'object') {
     if (req.body.adminAction === 'syncPokemonAliases') {
       return syncPokemonAliases(req, res);
+    }
+    if (req.body.action === 'listPokemonAliases') {
+      return listAliases(req, res);
     }
     const aliased = await applyPokemonAlias(req.body);
     if (req.body.fast === true || req.body.fast === 'true') {
