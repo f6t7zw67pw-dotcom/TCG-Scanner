@@ -83,6 +83,21 @@ export async function lookupPokemonNameAlias(value, sql = getSql()) {
   return result;
 }
 
+export async function listPokemonNameAliases({ language = 'ja-hrkt', limit = 1200 } = {}, sql = getSql()) {
+  if (!sql) return [];
+  await ensurePokemonNameAliasSchema(sql);
+  const lang = String(language || 'ja-hrkt').trim().toLowerCase();
+  const max = Math.max(1, Math.min(1500, Number(limit) || 1200));
+  const rows = await sql`
+    SELECT pokemon_id, english_name, alias, language, source
+    FROM cw_pokemon_name_aliases
+    WHERE language = ${lang}
+    ORDER BY pokemon_id ASC, alias ASC
+    LIMIT ${max}
+  `;
+  return rows.map(publicAlias).filter(Boolean);
+}
+
 export async function upsertPokemonNameAliases(sql, species) {
   await ensurePokemonNameAliasSchema(sql);
   const pokemonId = Number(species?.id || 0);
