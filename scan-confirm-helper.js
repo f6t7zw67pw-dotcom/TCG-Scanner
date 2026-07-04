@@ -92,6 +92,7 @@
     const fullNumber = text(card.fullNumber || card.number || $('fullNumber')?.value || $('searchNumber')?.value || '');
     const search = text(card.searchNumber || searchNumber(fullNumber) || $('searchNumber')?.value || '');
     return {
+      fast: true,
       name: cmName || originalName,
       originalName,
       cardmarketName: cmName,
@@ -111,7 +112,7 @@
   }
   async function apiFetch(path, options) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 16000);
+    const timer = setTimeout(() => controller.abort(), 8000);
     try {
       const response = await fetch(path, {
         credentials: 'same-origin',
@@ -123,7 +124,7 @@
       if (!response.ok || data.ok === false) throw new Error(data.error || `Fehler ${response.status}`);
       return data;
     } catch (err) {
-      if (err?.name === 'AbortError') throw new Error('Suche dauert zu lange. Bitte nochmal Treffer suchen druecken.');
+      if (err?.name === 'AbortError') throw new Error('Automatische Treffer dauern zu lange. Du kannst unten manuell Treffer suchen.');
       throw err;
     } finally {
       clearTimeout(timer);
@@ -267,7 +268,7 @@
     const target = $('cwConfirmCandidates');
     if (!target) return;
     if (!cards.length) {
-      target.innerHTML = '<div class="cwConfirmStatus warn">Keine Katalogtreffer gefunden. Du kannst die Felder weiter manuell nutzen.</div>';
+      target.innerHTML = '<div class="cwConfirmStatus warn">Keine schnellen Katalogtreffer gefunden. Du kannst unten manuell Treffer suchen.</div>';
       return;
     }
     target.innerHTML = cards.slice(0, 5).map((card, index) => `
@@ -295,17 +296,17 @@
     if (loading) return;
     loading = true;
     try {
-      status('Katalogtreffer werden gesucht...');
+      status('Schnelle Katalogtreffer werden gesucht...');
       const data = await apiFetch('/api/card-search', {
         method: 'POST',
         body: JSON.stringify(candidatePayload(scan))
       });
       latestScan = { ...scan, candidates: data.cards || [] };
       renderCandidates(data.cards || []);
-      status(`${(data.cards || []).length} moegliche Treffer gefunden. Bitte richtigen Treffer bestaetigen.`, (data.cards || []).length ? 'ok' : 'warn');
+      status(`${(data.cards || []).length} schnelle Treffer gefunden. Bitte richtigen Treffer bestaetigen.`, (data.cards || []).length ? 'ok' : 'warn');
     } catch (err) {
       renderCandidates([]);
-      status(err.message || 'Katalogtreffer konnten nicht geladen werden.', 'warn');
+      status(err.message || 'Schnelle Katalogtreffer konnten nicht geladen werden.', 'warn');
     } finally {
       loading = false;
     }
