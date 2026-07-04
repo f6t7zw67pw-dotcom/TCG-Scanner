@@ -83,9 +83,13 @@
       .replace(/\s+V$/i, '-V')
       .replace(/\s+GX$/i, '-GX');
   }
+  function localAlias(value) {
+    if (typeof window.cwNameAliasLookup !== 'function') return '';
+    try { return text(window.cwNameAliasLookup(value)); } catch { return ''; }
+  }
   function latinFallbackName(value) {
     const clean = text(value);
-    return JP_NAME_OVERRIDES[clean] || CN_NAME_OVERRIDES[clean] || '';
+    return localAlias(clean) || JP_NAME_OVERRIDES[clean] || CN_NAME_OVERRIDES[clean] || '';
   }
   function activeLanguageCode() {
     return text(document.querySelector('#langChips .chip.active')?.dataset?.code || '');
@@ -119,8 +123,8 @@
 
     const originalName = text(next.originalName || dom.originalName || scan.originalName || scan.visibleTitle || next.name);
     const rawCardmarket = text(next.cardmarketName || dom.cardmarketName || scan.cardmarketName || scan.englishName || next.name);
-    const mapped = latinFallbackName(rawCardmarket) || latinFallbackName(originalName) || latinFallbackName(scan.name) || latinFallbackName(scan.visibleTitle);
-    const cardmarketName = hasAsianText(rawCardmarket) && mapped ? mapped : rawCardmarket;
+    const mapped = localAlias(originalName) || localAlias(rawCardmarket) || latinFallbackName(rawCardmarket) || latinFallbackName(originalName) || latinFallbackName(scan.name) || latinFallbackName(scan.visibleTitle);
+    const cardmarketName = mapped || rawCardmarket;
     const englishName = text(next.englishName || scan.englishName || mapped || (likelyEnglish(cardmarketName) ? cardmarketName : ''));
     const visibleTitle = text(next.visibleTitle || scan.visibleTitle || (hasAsianText(originalName) ? originalName : ''));
     const fullNumber = text(next.fullNumber || dom.fullNumber || scan.fullNumber || next.number);
