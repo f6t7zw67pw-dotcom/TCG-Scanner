@@ -57,35 +57,29 @@
 
   function installFilePicker() {
     const input = document.getElementById('imageInput');
-    if (!input || input.dataset.cwMobilePicker === '1') return;
+    if (!input) return;
 
-    input.dataset.cwMobilePicker = '1';
     input.disabled = false;
     input.removeAttribute('capture');
     input.setAttribute('accept', 'image/*');
+    input.style.pointerEvents = 'none';
 
-    const label = document.querySelector('label[for="imageInput"]');
-    if (label) {
-      label.classList.add('cwFilePick');
-      label.removeAttribute('for');
-      if (input.parentElement !== label) label.appendChild(input);
+    const label = document.querySelector('label.btn.primary');
+    if (label && label.textContent.includes('Foto')) {
+      label.setAttribute('for', 'imageInput');
+      label.classList.remove('cwFilePick');
     }
-
-    const openPicker = (event) => {
-      const picker = document.getElementById('imageInput');
-      if (!picker) return;
-      picker.disabled = false;
-      picker.style.pointerEvents = 'auto';
-      picker.value = '';
-      try { picker.click(); } catch {}
-      if (event) event.preventDefault();
-    };
 
     const altButton = document.getElementById('pickImageBtn');
     if (altButton && altButton.dataset.cwMobilePicker !== '1') {
       altButton.dataset.cwMobilePicker = '1';
-      altButton.addEventListener('click', openPicker, true);
-      altButton.addEventListener('touchend', openPicker, true);
+      altButton.addEventListener('click', () => {
+        const picker = document.getElementById('imageInput');
+        if (!picker) return;
+        picker.disabled = false;
+        picker.value = '';
+        picker.click();
+      }, true);
     }
   }
 
@@ -105,24 +99,15 @@
         border-color: #7c3cff !important;
         box-shadow: 0 0 0 2px rgba(124,60,255,.25) !important;
       }
-      .cwFilePick {
-        position: relative !important;
-        overflow: hidden !important;
-        touch-action: manipulation !important;
-      }
-      .cwFilePick #imageInput {
-        position: absolute !important;
-        inset: 0 !important;
+      #imageInput {
+        position: fixed !important;
         left: 0 !important;
         top: 0 !important;
-        width: 100% !important;
-        height: 100% !important;
-        min-height: 54px !important;
-        opacity: 0 !important;
-        pointer-events: auto !important;
-        z-index: 10 !important;
-        cursor: pointer !important;
-        font-size: 80px !important;
+        width: 1px !important;
+        height: 1px !important;
+        opacity: .01 !important;
+        pointer-events: none !important;
+        z-index: -1 !important;
       }
     `;
     document.head.appendChild(style);
