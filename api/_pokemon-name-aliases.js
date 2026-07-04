@@ -66,12 +66,14 @@ export async function lookupPokemonNameAlias(value, sql = getSql()) {
     WHERE alias_folded = ${folded}
     ORDER BY
       CASE language
-        WHEN 'ja-Hrkt' THEN 1
+        WHEN 'ja-hrkt' THEN 1
         WHEN 'ja' THEN 2
-        WHEN 'zh-Hans' THEN 3
-        WHEN 'zh-Hant' THEN 4
+        WHEN 'zh-hans' THEN 3
+        WHEN 'zh-hant' THEN 4
         WHEN 'ko' THEN 5
         WHEN 'de' THEN 6
+        WHEN 'ja-roma' THEN 7
+        WHEN 'en' THEN 8
         ELSE 9
       END
     LIMIT 1
@@ -90,10 +92,10 @@ export async function upsertPokemonNameAliases(sql, species) {
     .replace(/\b\w/g, (ch) => ch.toUpperCase());
   if (!pokemonId || !englishName) return 0;
 
-  const allowed = new Set(['en', 'de', 'ja', 'ja-Hrkt', 'ko', 'zh-Hans', 'zh-Hant', 'roomaji']);
+  const allowed = new Set(['en', 'de', 'ja', 'ja-hrkt', 'ja-roma', 'ko', 'zh-hans', 'zh-hant']);
   const aliases = [];
   for (const item of names) {
-    const language = String(item.language?.name || '').trim();
+    const language = String(item.language?.name || '').trim().toLowerCase();
     const alias = String(item.name || '').trim();
     if (!allowed.has(language) || !alias) continue;
     aliases.push({ language, alias });
