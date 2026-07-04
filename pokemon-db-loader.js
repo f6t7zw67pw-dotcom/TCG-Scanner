@@ -2,6 +2,7 @@
 (function () {
   const BASE_LOADER = '/api/loader-base';
   const HELPER = 'cardmarket-helper.js';
+  const NAME_ALIAS_HELPER = 'name-alias-db-helper.js';
   const SEARCH_HELPER = 'card-search-helper.js';
 
   function loadScript(src) {
@@ -310,6 +311,7 @@
       nudgeLoadHandlers();
       return loadScript(HELPER);
     })
+    .then(() => loadScript(NAME_ALIAS_HELPER))
     .then(() => loadScript(SEARCH_HELPER))
     .then(() => {
       installNumberFixes();
