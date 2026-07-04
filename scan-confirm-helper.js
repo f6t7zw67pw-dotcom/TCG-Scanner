@@ -1,4 +1,4 @@
-// Candidate confirmation flow for single-card scans.
+// Stable scan review panel for single-card scans.
 (function () {
   let latestScan = null;
   let loading = false;
@@ -9,22 +9,18 @@
 
   function $(id) { return document.getElementById(id); }
   function text(value) { return String(value || '').trim(); }
-  function toast(textValue) {
-    if (typeof window.toast === 'function') window.toast(textValue);
-    else console.log(textValue);
+  function toast(message) {
+    if (typeof window.toast === 'function') window.toast(message);
+    else console.log(message);
   }
   function escapeHtml(value) {
-    return String(value || '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+    return String(value || '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
   }
-  function escapeAttr(value) {
-    return escapeHtml(value).replace(/'/g, '&#39;');
-  }
+  function escapeAttr(value) { return escapeHtml(value); }
   function hasAsianText(value) {
     return /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/.test(String(value || ''));
   }
-  function latinFallbackName(value) {
-    return JP_NAME_OVERRIDES[text(value)] || '';
-  }
+  function latinFallbackName(value) { return JP_NAME_OVERRIDES[text(value)] || ''; }
   function padNumber(value) {
     const raw = String(value || '').trim().toUpperCase();
     if (!raw) return '';
@@ -34,9 +30,7 @@
     if (parts.length <= 1) return padded;
     return `${padded}/${parts.slice(1).join('/').replace(/\s+/g, '')}`;
   }
-  function searchNumber(value) {
-    return padNumber(String(value || '').split('/')[0]);
-  }
+  function searchNumber(value) { return padNumber(String(value || '').split('/')[0]); }
   function inferVersion(card) {
     const rarity = String(card?.rarity || card?.cardType || '').toLowerCase();
     const name = String(card?.name || card?.originalName || card?.cardmarketName || '').toLowerCase();
@@ -54,9 +48,7 @@
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
-  function selectedCondition() {
-    return $('condition')?.value || 'Near Mint';
-  }
+  function selectedCondition() { return $('condition')?.value || 'Near Mint'; }
   function scanInputFromResult(scan) {
     const card = Array.isArray(scan?.cards) ? scan.cards[0] : null;
     return card || {};
@@ -112,7 +104,7 @@
   }
   async function apiFetch(path, options) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
+    const timer = setTimeout(() => controller.abort(), 6000);
     try {
       const response = await fetch(path, {
         credentials: 'same-origin',
@@ -124,52 +116,66 @@
       if (!response.ok || data.ok === false) throw new Error(data.error || `Fehler ${response.status}`);
       return data;
     } catch (err) {
-      if (err?.name === 'AbortError') throw new Error('Automatische Treffer dauern zu lange. Du kannst unten manuell Treffer suchen.');
+      if (err?.name === 'AbortError') throw new Error('Schneller Vorschlag dauert zu lange. Du kannst unten manuell Treffer suchen.');
       throw err;
     } finally {
       clearTimeout(timer);
     }
   }
   function addStyle() {
-    if ($('cw-confirm-style')) return;
+    if ($('cw-scan-panel-style')) return;
     const style = document.createElement('style');
-    style.id = 'cw-confirm-style';
+    style.id = 'cw-scan-panel-style';
     style.textContent = `
-      .cwConfirmBox{margin-top:14px;border:1px solid rgba(89,117,165,.36);border-radius:20px;background:linear-gradient(180deg,rgba(8,18,33,.98),rgba(5,13,26,.98));padding:14px;display:grid;gap:10px}
-      .cwConfirmHead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-weight:900}
-      .cwConfirmStatus{font-size:13px;color:#a8b3c6;line-height:1.4;border:1px solid rgba(89,117,165,.28);border-radius:14px;padding:10px;background:#071426}
-      .cwConfirmStatus.ok{color:#c9ffdf;border-color:rgba(33,194,107,.42);background:#062716}
-      .cwConfirmStatus.warn{color:#ffd7bd;border-color:rgba(255,157,69,.42);background:#321407}
-      .cwConfirmGrid{display:grid;gap:10px}.cwCandidate{display:grid;grid-template-columns:62px 1fr;gap:10px;border:1px solid rgba(89,117,165,.28);border-radius:16px;background:#071426;padding:10px;align-items:start}
-      .cwCandidate img{width:62px;height:86px;object-fit:cover;border-radius:8px;background:#050d1a}.cwCandidate b{display:block;color:#f5f7fb}.cwCandidate .small{color:#a8b3c6;font-size:13px;line-height:1.35}
-      .cwScorePill{display:inline-block;margin-top:5px;border:1px solid rgba(150,170,255,.28);border-radius:999px;padding:4px 8px;background:#102039;color:#dbe7ff;font-size:12px;font-weight:850}
-      @media(max-width:620px){.cwCandidate{grid-template-columns:48px 1fr}.cwCandidate img{width:48px;height:67px}.cwCandidate .actions .btn{width:100%}}
+      .cwScanPanel{margin-top:12px;border:1px solid rgba(89,117,165,.34);border-radius:18px;background:#071426;padding:12px;display:grid;gap:10px;contain:layout paint;position:relative;z-index:1}
+      .cwScanHead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+      .cwScanTitle{font-weight:950;font-size:18px;color:#f5f7fb}.cwScanBadge{border:1px solid rgba(150,170,255,.35);border-radius:999px;padding:6px 10px;background:#102039;color:#dbe7ff;font-size:12px;font-weight:900}
+      .cwScanStatus{font-size:13px;color:#a8b3c6;line-height:1.4;border:1px solid rgba(89,117,165,.28);border-radius:14px;padding:10px;background:#06101d}
+      .cwScanStatus.ok{color:#c9ffdf;border-color:rgba(33,194,107,.42);background:#062716}.cwScanStatus.warn{color:#ffd7bd;border-color:rgba(255,157,69,.42);background:#321407}
+      .cwScanList{display:grid;gap:10px}.cwScanCandidate{display:grid;grid-template-columns:56px minmax(0,1fr);gap:10px;border:1px solid rgba(89,117,165,.28);border-radius:16px;background:#071426;padding:10px;align-items:start;overflow:hidden}
+      .cwScanCandidate img{width:56px;height:78px;object-fit:cover;border-radius:8px;background:#050d1a}.cwScanCandidate b{display:block;color:#f5f7fb;line-height:1.2;overflow-wrap:anywhere}.cwScanMeta{color:#a8b3c6;font-size:13px;line-height:1.35;overflow-wrap:anywhere}
+      .cwScanHint{margin-top:5px;color:#a8b3c6;font-size:12px;line-height:1.35}.cwScanActions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.cwScanActions .btn{min-height:44px;padding:10px 12px}.cwScanSecondary{grid-column:1/-1}
+      @media(max-width:620px){.cwScanPanel{margin-bottom:12px;padding:12px}.cwScanCandidate{grid-template-columns:48px minmax(0,1fr)}.cwScanCandidate img{width:48px;height:67px}.cwScanActions{grid-template-columns:1fr}.cwScanSecondary{grid-column:auto}.cwScanActions .btn{width:100%}}
     `;
     document.head.appendChild(style);
   }
-  function ensureBox() {
-    let box = $('cwConfirmBox');
-    if (box) return box;
+  function removeLegacyPanel() {
+    const legacy = $('cwConfirmBox');
+    if (legacy) legacy.remove();
+  }
+  function ensurePanel() {
     addStyle();
+    removeLegacyPanel();
+    let panel = $('cwScanPanel');
+    if (panel) return panel;
     const anchor = $('scanStatus') || $('imageBox') || document.querySelector('#scanner .card');
     if (!anchor) return null;
-    box = document.createElement('div');
-    box.id = 'cwConfirmBox';
-    box.className = 'cwConfirmBox';
-    box.innerHTML = `
-      <div class="cwConfirmHead"><span>Scan bestaetigen</span><span class="badge">Neon-Katalog</span></div>
-      <div id="cwConfirmStatus" class="cwConfirmStatus">Nach dem Scan erscheinen hier passende Katalogtreffer.</div>
-      <div id="cwConfirmCandidates" class="cwConfirmGrid"></div>
+    panel = document.createElement('section');
+    panel.id = 'cwScanPanel';
+    panel.className = 'cwScanPanel';
+    panel.innerHTML = `
+      <div class="cwScanHead">
+        <div class="cwScanTitle">Scan-Ergebnis pruefen</div>
+        <div class="cwScanBadge">Schnellmodus</div>
+      </div>
+      <div id="cwScanStatus" class="cwScanStatus">Nach dem Scan erscheint hier ein schneller Vorschlag. Genaue API-Treffer kannst du unten weiterhin manuell suchen.</div>
+      <div id="cwScanCandidates" class="cwScanList"></div>
     `;
-    anchor.insertAdjacentElement('afterend', box);
-    return box;
+    anchor.insertAdjacentElement('afterend', panel);
+    return panel;
   }
-  function status(textValue, type) {
-    ensureBox();
-    const el = $('cwConfirmStatus');
+  function status(message, type) {
+    ensurePanel();
+    const el = $('cwScanStatus');
     if (!el) return;
-    el.textContent = textValue;
-    el.className = `cwConfirmStatus ${type || ''}`.trim();
+    el.textContent = message;
+    el.className = `cwScanStatus ${type || ''}`.trim();
+  }
+  function scrollToManualSearch() {
+    const target = $('singleTcgSearchBtn') || $('originalName') || $('cardmarketName');
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (target.focus) setTimeout(() => target.focus({ preventScroll: true }), 350);
   }
   function applyCandidate(card) {
     const full = padNumber(card.number || card.fullNumber || '');
@@ -235,11 +241,16 @@
     localStorage.setItem('cw_collection', JSON.stringify(selected.cards || []));
     window.dispatchEvent(new StorageEvent('storage', { key: 'cw_collection' }));
   }
-  async function confirmScan(card, save) {
+  async function handleCandidate(card, action) {
     applyCandidate(card);
-    if (!save) {
-      status('Treffer uebernommen. Nicht gespeichert und kein Server-Confirm ausgefuehrt.', 'ok');
-      toast('Treffer uebernommen');
+    if (action === 'manual') {
+      status('In die Felder uebernommen. Unten kannst du jetzt die genaue API-Treffersuche starten.', 'ok');
+      scrollToManualSearch();
+      return;
+    }
+    if (action === 'apply') {
+      status('In die Felder uebernommen. Noch nicht gespeichert.', 'ok');
+      toast('Scan-Daten uebernommen');
       return;
     }
 
@@ -259,61 +270,68 @@
     if (window.cwCloudSync?.pushCloud) {
       try { await window.cwCloudSync.pushCloud(true); } catch {}
     }
-    status(confirmOk ? 'Treffer bestaetigt, gespeichert und mit dem Scan verknuepft.' : 'Treffer gespeichert. Server-Verknuepfung konnte gerade nicht bestaetigt werden.', confirmOk ? 'ok' : 'warn');
-    toast(confirmOk ? 'Karte bestaetigt und gespeichert' : 'Karte gespeichert');
+    status(confirmOk ? 'Gespeichert und mit dem Scan verknuepft.' : 'Lokal gespeichert. Server-Verknuepfung konnte gerade nicht bestaetigt werden.', confirmOk ? 'ok' : 'warn');
+    toast(confirmOk ? 'Karte gespeichert' : 'Karte lokal gespeichert');
     if (window.cwScanHistory?.loadHistory) setTimeout(() => window.cwScanHistory.loadHistory().catch(() => {}), 300);
   }
   function renderCandidates(cards) {
-    ensureBox();
-    const target = $('cwConfirmCandidates');
+    ensurePanel();
+    const target = $('cwScanCandidates');
     if (!target) return;
     if (!cards.length) {
-      target.innerHTML = '<div class="cwConfirmStatus warn">Keine schnellen Katalogtreffer gefunden. Du kannst unten manuell Treffer suchen.</div>';
+      target.innerHTML = `
+        <div class="cwScanStatus warn">Kein schneller Vorschlag gefunden. Unten kannst du die genaue API-Treffersuche manuell starten.</div>
+        <button class="btn ghost" type="button" id="cwScanManualOnly">Unten manuell pruefen</button>
+      `;
+      $('cwScanManualOnly')?.addEventListener('click', scrollToManualSearch);
       return;
     }
-    target.innerHTML = cards.slice(0, 5).map((card, index) => `
-      <div class="cwCandidate" data-index="${index}">
+    target.innerHTML = cards.slice(0, 3).map((card, index) => `
+      <article class="cwScanCandidate" data-index="${index}">
         ${card.imageSmall || card.imageLarge ? `<img src="${escapeAttr(card.imageSmall || card.imageLarge)}" alt="">` : '<img alt="">'}
         <div>
           <b>${escapeHtml(stableCardmarketName(card) || card.name || 'Unbekannte Karte')}</b>
-          <div class="small">${escapeHtml(card.cardmarketSetName || card.setName || '-')} · ${escapeHtml(card.setCode || '-')} · Nr. ${escapeHtml(card.number || '-')}</div>
-          <div class="small">${escapeHtml(card.rarity || '')}</div>
-          <span class="cwScorePill">${Math.round(Number(card.score || 0))}% Treffer</span>
-          <div class="actions" style="margin-top:8px">
-            <button class="btn ghost cwApplyCandidate" type="button">Nur uebernehmen</button>
-            <button class="btn primary cwSaveCandidate" type="button">Bestaetigen & speichern</button>
+          <div class="cwScanMeta">${escapeHtml(card.cardmarketSetName || card.setName || '-')} · ${escapeHtml(card.setCode || '-')} · Nr. ${escapeHtml(card.number || '-')}</div>
+          ${card.rarity ? `<div class="cwScanMeta">${escapeHtml(card.rarity)}</div>` : ''}
+          <div class="cwScanHint">Schneller Vorschlag aus den Scan-Daten. Fuer genauere Treffer unten manuell suchen.</div>
+          <div class="cwScanActions">
+            <button class="btn ghost cwScanApply" type="button">In Felder uebernehmen</button>
+            <button class="btn primary cwScanSave" type="button">In Sammlung speichern</button>
+            <button class="btn ghost cwScanManual cwScanSecondary" type="button">Unten genauer pruefen</button>
           </div>
         </div>
-      </div>
+      </article>
     `).join('');
-    target.querySelectorAll('.cwCandidate').forEach((el) => {
+    target.querySelectorAll('.cwScanCandidate').forEach((el) => {
       const card = cards[Number(el.dataset.index)];
-      el.querySelector('.cwApplyCandidate').onclick = () => confirmScan(card, false).catch((err) => status(err.message || 'Uebernehmen fehlgeschlagen.', 'warn'));
-      el.querySelector('.cwSaveCandidate').onclick = () => confirmScan(card, true).catch((err) => status(err.message || 'Speichern fehlgeschlagen.', 'warn'));
+      el.querySelector('.cwScanApply').onclick = () => handleCandidate(card, 'apply').catch((err) => status(err.message || 'Uebernehmen fehlgeschlagen.', 'warn'));
+      el.querySelector('.cwScanSave').onclick = () => handleCandidate(card, 'save').catch((err) => status(err.message || 'Speichern fehlgeschlagen.', 'warn'));
+      el.querySelector('.cwScanManual').onclick = () => handleCandidate(card, 'manual').catch((err) => status(err.message || 'Pruefen fehlgeschlagen.', 'warn'));
     });
   }
   async function loadCandidates(scan) {
     if (loading) return;
     loading = true;
     try {
-      status('Schnelle Katalogtreffer werden gesucht...');
+      latestScan = scan;
+      status('Schneller Vorschlag wird vorbereitet...');
       const data = await apiFetch('/api/card-search', {
         method: 'POST',
         body: JSON.stringify(candidatePayload(scan))
       });
       latestScan = { ...scan, candidates: data.cards || [] };
       renderCandidates(data.cards || []);
-      status(`${(data.cards || []).length} schnelle Treffer gefunden. Bitte richtigen Treffer bestaetigen.`, (data.cards || []).length ? 'ok' : 'warn');
+      status((data.cards || []).length ? 'Schneller Vorschlag bereit. Waehle jetzt eine Aktion.' : 'Kein schneller Vorschlag gefunden.', (data.cards || []).length ? 'ok' : 'warn');
     } catch (err) {
       renderCandidates([]);
-      status(err.message || 'Schnelle Katalogtreffer konnten nicht geladen werden.', 'warn');
+      status(err.message || 'Schneller Vorschlag konnte nicht geladen werden.', 'warn');
     } finally {
       loading = false;
     }
   }
   function patchScanFetch() {
-    if (window.__cwConfirmFetchPatched) return;
-    window.__cwConfirmFetchPatched = true;
+    if (window.__cwScanPanelFetchPatched) return;
+    window.__cwScanPanelFetchPatched = true;
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, init) => {
       const response = await originalFetch(input, init);
@@ -322,7 +340,6 @@
       if (url.startsWith('/api/scan') && method === 'POST') {
         response.clone().json().then((data) => {
           if (data?.ok && Array.isArray(data.cards) && data.cards.length) {
-            latestScan = data;
             setTimeout(() => loadCandidates(data), 120);
           }
         }).catch(() => {});
@@ -331,9 +348,10 @@
     };
   }
   function install() {
-    ensureBox();
+    ensurePanel();
     patchScanFetch();
   }
+
   window.cwScanConfirm = { loadCandidates, applyCandidate };
   window.addEventListener('load', () => {
     install();
