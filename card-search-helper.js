@@ -1,4 +1,4 @@
-// Sends richer scan context to the catalog search, auto-starts matches after scan and stabilizes Cardmarket fields.
+// Sends richer scan context to the catalog search and stabilizes Cardmarket fields.
 (function () {
   if (window.__cwCardSearchHelper) return;
   window.__cwCardSearchHelper = true;
@@ -157,29 +157,6 @@
     }, true);
   }
 
-  let lastAutoSearchSignature = '';
-  function searchSignature() {
-    const dom = singleDomContext();
-    return [dom.originalName, dom.cardmarketName, dom.fullNumber, dom.searchNumber, dom.setCode, dom.setName].join('|');
-  }
-  function shouldAutoSearch() {
-    const button = document.getElementById('singleTcgSearchBtn');
-    const matches = document.getElementById('singleMatches');
-    const sig = searchSignature();
-    if (!button || !sig.replace(/\|/g, '')) return false;
-    if (sig === lastAutoSearchSignature) return false;
-    if (matches && /Treffer aus|Suche Treffer|Automatische Treffer/.test(matches.textContent || '')) return false;
-    return true;
-  }
-  function autoSearchAfterScan() {
-    [900, 1500, 2400, 3600].forEach((delay) => setTimeout(() => {
-      if (!shouldAutoSearch()) return;
-      const button = document.getElementById('singleTcgSearchBtn');
-      lastAutoSearchSignature = searchSignature();
-      button?.click();
-    }, delay));
-  }
-
   function installFetchPatch() {
     if (window.fetch.__cwCardSearchPatched) return;
     const originalFetch = window.fetch.bind(window);
@@ -196,7 +173,7 @@
       }
       if (isCardSearch && !init?.signal && typeof AbortController !== 'undefined') {
         controller = new AbortController();
-        timer = setTimeout(() => controller.abort(), 18000);
+        timer = setTimeout(() => controller.abort(), 9000);
         init = { ...(init || {}), signal: controller.signal };
       }
       try {
@@ -208,7 +185,6 @@
             setTimeout(enhanceMatchUi, 350);
           } catch {}
         }
-        if (String(url).includes('/api/scan')) autoSearchAfterScan();
         return response;
       } catch (err) {
         if (isCardSearch && err?.name === 'AbortError') throw new Error('Treffersuche dauert zu lange. Bitte nochmal druecken.');
