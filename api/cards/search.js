@@ -76,7 +76,7 @@ function buildNameVariants(input) {
     const value = normalizeName(extra || '');
     if (value && !variants.includes(value)) variants.push(value);
   }
-  return variants.slice(0, 18);
+  return variants.slice(0, 12);
 }
 
 function hasUsefulName(input) {
@@ -91,33 +91,43 @@ function buildPokemonQueries(input, setCodes = []) {
   const codes = Array.from(new Set([normalizeSetCode(input.setCode), ...setCodes.map(normalizeSetCode)].filter(Boolean)));
   const queries = [];
   const add = (query) => { if (query && !queries.includes(query)) queries.push(query); };
-  const withCodes = codes.length ? codes : [''];
+  const withCodes = codes.length ? codes.slice(0, 5) : [''];
   const namedSearch = names.length > 0 || bases.length > 0;
 
   for (const setCode of withCodes) {
-    for (const name of names) {
+    for (const name of names.slice(0, 6)) {
       if (name && number && setCode) add(`name:${quote(name)} number:${number} set.ptcgoCode:${setCode}`);
       if (name && setCode) add(`name:${quote(name)} set.ptcgoCode:${setCode}`);
     }
-    for (const base of bases) {
+    for (const base of bases.slice(0, 4)) {
       if (base && number && setCode) add(`name:${quote(base)} number:${number} set.ptcgoCode:${setCode}`);
       if (base && setCode) add(`name:${quote(base)} set.ptcgoCode:${setCode}`);
     }
     if (!namedSearch && number && setCode) add(`number:${number} set.ptcgoCode:${setCode}`);
   }
 
-  for (const name of names) {
+  for (const name of names.slice(0, 6)) {
     if (name && number) add(`name:${quote(name)} number:${number}`);
     if (name && type) add(`name:${quote(name)} supertype:${quote(type)}`);
     if (name) add(`name:${quote(name)}`);
   }
-  for (const base of bases) {
+  for (const base of bases.slice(0, 4)) {
     if (base && number) add(`name:${quote(base)} number:${number}`);
     if (base) add(`name:${quote(base)}`);
   }
   if (!namedSearch && number) add(`number:${number}`);
-  if (!namedSearch) for (const setCode of codes) add(`set.ptcgoCode:${setCode}`);
-  return queries.slice(0, 80);
+  if (!namedSearch) for (const setCode of codes.slice(0, 5)) add(`set.ptcgoCode:${setCode}`);
+  return queries.slice(0, 30);
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 2600) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function fetchPokemonCandidates(input, setCodes = []) {
@@ -126,8 +136,13 @@ async function fetchPokemonCandidates(input, setCodes = []) {
   const headers = process.env.POKEMON_TCG_API_KEY ? { 'X-Api-Key': process.env.POKEMON_TCG_API_KEY } : {};
 
   for (const query of buildPokemonQueries(input, setCodes)) {
-    const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(query)}&pageSize=30&orderBy=-set.releaseDate`;
-    const response = await fetch(url, { headers });
+    const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(query)}&pageSize=12&orderBy=-set.releaseDate`;
+    let response;
+    try {
+      response = await fetchWithTimeout(url, { headers }, 2600);
+    } catch {
+      continue;
+    }
     const data = await response.json().catch(() => ({}));
     if (!response.ok) continue;
     for (const card of data.data || []) {
@@ -135,13 +150,20 @@ async function fetchPokemonCandidates(input, setCodes = []) {
       seen.add(card.id);
       cards.push(card);
     }
-    if (cards.length >= 30) break;
+    if (cards.length >= 12) break;
   }
   return cards;
 }
 
 function hasAsianText(value) {
   return /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/.test(String(value || ''));
+}
+
+function hasLatinSearchName(input) {
+  return [input.name, input.cardmarketName, input.englishName].some((value) => {
+    const clean = String(value || '').trim();
+    return clean && !hasAsianText(clean) && /^[A-Za-z0-9 .:'’&+\-]+$/.test(clean);
+  });
 }
 
 function uniqueList(values) {
@@ -157,7 +179,7 @@ function tcgdexLanguages(input) {
   if (String(input.languageCode || '') === '8' || guess.includes('korea')) return uniqueList(['ko', 'en']);
   if (guess.includes('chinese') || guess.includes('china') || guess.includes('cn') || guess.includes('zh')) return uniqueList(['zh-tw', 'zh-cn', 'cn', 'en']);
   if (hasAsianText(text)) return uniqueList(['ja', 'zh-tw', 'zh-cn', 'ko', 'cn', 'en']);
-  return uniqueList(['en', 'ja', 'zh-tw', 'zh-cn', 'ko']);
+  return uniqueList(['en']);
 }
 
 function comparableNumber(value) {
@@ -174,7 +196,7 @@ async function fetchTcgdexList(lang) {
   const cached = tcgdexCache.get(lang);
   if (cached && Date.now() - cached.createdAt < cacheMs) return cached.cards;
   const url = `https://api.tcgdex.net/v2/${encodeURIComponent(lang)}/cards`;
-  const response = await fetch(url, { headers: { Accept: 'application/json', 'User-Agent': 'TCG-Scanner' } });
+  const response = await fetchWithTimeout(url, { headers: { Accept: 'application/json', 'User-Agent': 'TCG-Scanner' } }, 3000);
   if (!response.ok) throw new Error(`TCGdex ${lang} nicht erreichbar`);
   const cards = await response.json();
   if (!Array.isArray(cards)) throw new Error(`TCGdex ${lang} lieferte keine Kartenliste`);
@@ -187,7 +209,12 @@ async function fetchTcgdexDetail(lang, id) {
   const cached = tcgdexDetailCache.get(key);
   if (cached) return cached;
   const url = `https://api.tcgdex.net/v2/${encodeURIComponent(lang)}/cards/${encodeURIComponent(id)}`;
-  const response = await fetch(url, { headers: { Accept: 'application/json', 'User-Agent': 'TCG-Scanner' } });
+  let response;
+  try {
+    response = await fetchWithTimeout(url, { headers: { Accept: 'application/json', 'User-Agent': 'TCG-Scanner' } }, 2200);
+  } catch {
+    return null;
+  }
   if (!response.ok) return null;
   const card = await response.json().catch(() => null);
   if (card && typeof card === 'object') tcgdexDetailCache.set(key, card);
@@ -264,13 +291,13 @@ function tcgdexPublicCard(card, lang, score, input = {}) {
     cardmarketSetName: stableSetName,
     rarity: card.rarity || '',
     imageSmall: tcgdexImage(card, 'low'),
-    imageLarge: tcgdexImage(card, 'high'),
+    imageLarge: '',
     score,
     source: `tcgdex-${lang}`
   };
 }
 
-async function fetchTcgdexCandidates(input, limit = 12) {
+async function fetchTcgdexCandidates(input, limit = 6) {
   const seen = new Set();
   const preliminary = [];
   for (const lang of tcgdexLanguages(input)) {
@@ -287,11 +314,13 @@ async function fetchTcgdexCandidates(input, limit = 12) {
       if (seen.has(key)) continue;
       seen.add(key);
       preliminary.push({ lang, card, score });
+      if (preliminary.length >= Math.max(limit * 3, 12)) break;
     }
+    if (preliminary.length >= Math.max(limit * 3, 12)) break;
   }
 
   const detailed = [];
-  for (const item of preliminary.sort((a, b) => b.score - a.score).slice(0, Math.max(limit * 2, 18))) {
+  for (const item of preliminary.sort((a, b) => b.score - a.score).slice(0, Math.max(limit, 6))) {
     const detail = await fetchTcgdexDetail(item.lang, item.card.id);
     const card = detail ? { ...item.card, ...detail } : item.card;
     const score = Math.max(item.score, scoreTcgdexCard(card, input, item.lang));
@@ -316,7 +345,7 @@ function publicCard(card) {
     cardmarketSetName: card.cardmarketSetName || '',
     rarity: card.rarity || '',
     imageSmall: card.imageSmall || card.image_small || '',
-    imageLarge: card.imageLarge || card.image_large || '',
+    imageLarge: '',
     score: Number(card.score || 0),
     source: card.source || 'catalog'
   };
@@ -340,16 +369,16 @@ function catalogAttempts(input) {
   const rawName = input.name || input.originalName || input.cardmarketName || input.englishName || input.visibleTitle || '';
   const baseAttempts = names.length ? names : [rawName];
   const attempts = [];
-  for (const name of baseAttempts) {
+  for (const name of baseAttempts.slice(0, 8)) {
     attempts.push({ ...input, name, originalName: name, cardmarketName: name });
     attempts.push({ ...input, name, originalName: name, cardmarketName: name, setCode: '' });
     attempts.push({ ...input, name, originalName: name, cardmarketName: name, setCode: '', number: input.number || input.fullNumber || input.searchNumber || '' });
     attempts.push({ ...input, name, originalName: name, cardmarketName: name, setCode: '', setName: '', number: '', fullNumber: '', searchNumber: '' });
   }
-  return attempts;
+  return attempts.slice(0, 24);
 }
 
-async function flexibleCatalogSearch(sql, input, limit = 12) {
+async function flexibleCatalogSearch(sql, input, limit = 8) {
   const seen = new Set();
   const merged = [];
   const addRows = (rows) => {
@@ -386,21 +415,25 @@ export default async function handler(req, res) {
     if (!hasQuery) return res.status(400).json({ ok: false, error: 'Kein Suchbegriff vorhanden.' });
 
     const setCodes = await resolveSetCodes(sql, input);
-    let cards = await flexibleCatalogSearch(sql, input, 12);
+    let cards = await flexibleCatalogSearch(sql, input, 8);
     let hydrated = false;
     let tcgdexHydrated = false;
 
     const shouldUseExternal = cards.length < 3 || Number(cards[0]?.score || 0) < 70;
     if (shouldUseExternal) {
       const externalCards = filterNameMismatches(await fetchPokemonCandidates(input, setCodes), input);
-      for (const card of externalCards) await upsertPokemonCard(sql, card);
+      for (const card of externalCards.slice(0, 8)) await upsertPokemonCard(sql, card);
       hydrated = externalCards.length > 0;
-      cards = await flexibleCatalogSearch(sql, input, 12);
+      cards = await flexibleCatalogSearch(sql, input, 8);
     }
 
     let resultCards = cards.map(publicCard);
-    if (resultCards.length < 3 || Number(resultCards[0]?.score || 0) < 70 || hasAsianText(`${input.name || ''} ${input.originalName || ''} ${input.visibleTitle || ''}`)) {
-      const tcgdexCards = await fetchTcgdexCandidates(input, 12);
+    const hasForeignOriginal = hasAsianText(`${input.originalName || ''} ${input.visibleTitle || ''}`);
+    const hasGoodLatinResult = hasLatinSearchName(input) && resultCards.length >= 3 && Number(resultCards[0]?.score || 0) >= 70;
+    const shouldUseTcgdex = resultCards.length < 3 || Number(resultCards[0]?.score || 0) < 70 || (hasForeignOriginal && !hasGoodLatinResult);
+
+    if (shouldUseTcgdex) {
+      const tcgdexCards = await fetchTcgdexCandidates(input, 6);
       tcgdexHydrated = tcgdexCards.length > 0;
       const seen = new Set(resultCards.map((card) => `${card.source}:${card.sourceId || card.id}`));
       for (const card of tcgdexCards) {
@@ -415,7 +448,7 @@ export default async function handler(req, res) {
     const source = tcgdexHydrated
       ? (hydrated ? 'catalog+pokemon-tcg-api+tcgdex' : 'catalog+tcgdex')
       : (hydrated ? 'catalog+pokemon-tcg-api' : 'catalog');
-    return res.status(200).json({ ok: true, source, setCodes, cards: resultCards.slice(0, 12) });
+    return res.status(200).json({ ok: true, source, setCodes, cards: resultCards.slice(0, 8) });
   } catch (err) {
     return res.status(500).json({ ok: false, error: err?.message || 'Katalogsuche fehlgeschlagen.' });
   }
