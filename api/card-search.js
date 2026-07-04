@@ -1,7 +1,7 @@
 import searchHandler from './cards/search.js';
-import { enrichForeignNameInput } from './_i18n-name.js';
+import { enrichForeignNameInput, hasAsianText } from './_i18n-name.js';
 import { getSql, hasAdminToken } from './_auth.js';
-import { ensurePokemonNameAliasSchema, upsertPokemonNameAliases } from './_pokemon-name-aliases.js';
+import { ensurePokemonNameAliasSchema, lookupPokemonNameAlias, upsertPokemonNameAliases } from './_pokemon-name-aliases.js';
 
 export const config = { maxDuration: 60 };
 
@@ -41,6 +41,31 @@ function fastCandidate(input) {
     score: input.englishName || input.cardmarketName ? 82 : 58,
     source: input.i18nSource || 'fast-scan'
   };
+}
+
+async function applyPokemonAlias(input = {}) {
+  const names = [input.name, input.originalName, input.cardmarketName, input.visibleTitle]
+    .map(text)
+    .filter(Boolean);
+  if (!names.some(hasAsianText)) return null;
+  for (const name of names) {
+    const alias = await lookupPokemonNameAlias(name).catch(() => null);
+    if (!alias?.englishName) continue;
+    const englishName = alias.englishName;
+    return {
+      ...input,
+      name: englishName,
+      englishName,
+      cardmarketName: normalizeCardmarketName(englishName),
+      originalName: text(input.originalName || input.visibleTitle || input.name || alias.alias),
+      visibleTitle: text(input.visibleTitle || input.originalName || input.name || alias.alias),
+      i18nSource: alias.source || 'pokemon-name-db',
+      i18nSourceId: String(alias.pokemonId || ''),
+      i18nScore: 95,
+      __cwAliasApplied: true
+    };
+  }
+  return null;
 }
 
 async function fetchJson(url) {
@@ -105,12 +130,13 @@ export default async function handler(req, res) {
     if (req.body.adminAction === 'syncPokemonAliases') {
       return syncPokemonAliases(req, res);
     }
+    const aliased = await applyPokemonAlias(req.body);
     if (req.body.fast === true || req.body.fast === 'true') {
-      const enriched = await enrichForeignNameInput(req.body).catch(() => req.body);
+      const enriched = aliased || await enrichForeignNameInput(req.body).catch(() => req.body);
       const card = fastCandidate(enriched);
       return res.status(200).json({ ok: true, source: 'fast-scan', setCodes: enriched.setCode ? [enriched.setCode] : [], cards: card ? [card] : [] });
     }
-    req.body = await enrichForeignNameInput(req.body);
+    req.body = aliased || await enrichForeignNameInput(req.body);
   }
   return searchHandler(req, res);
 }
