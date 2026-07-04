@@ -4,7 +4,69 @@
   window.__cwCardSearchHelper = true;
 
   const JP_NAME_OVERRIDES = {
-    'ママンボウ': 'Alomomola'
+    'ママンボウ': 'Alomomola',
+    'イベルタル': 'Yveltal',
+    'レパルダス': 'Liepard',
+    'イシズマイ': 'Dwebble',
+    'サンダース': 'Jolteon',
+    'ブースター': 'Flareon',
+    'シャワーズ': 'Vaporeon',
+    'エーフィ': 'Espeon',
+    'ブラッキー': 'Umbreon',
+    'リーフィア': 'Leafeon',
+    'グレイシア': 'Glaceon',
+    'ニンフィア': 'Sylveon',
+    'ピカチュウ': 'Pikachu',
+    'リザードン': 'Charizard',
+    'フシギダネ': 'Bulbasaur',
+    'フシギソウ': 'Ivysaur',
+    'フシギバナ': 'Venusaur',
+    'ゼニガメ': 'Squirtle',
+    'カメール': 'Wartortle',
+    'カメックス': 'Blastoise',
+    'ヒトカゲ': 'Charmander',
+    'リザード': 'Charmeleon',
+    'ミュウ': 'Mew',
+    'ミュウツー': 'Mewtwo',
+    'ゲンガー': 'Gengar',
+    'ルカリオ': 'Lucario',
+    'レックウザ': 'Rayquaza',
+    'ギラティナ': 'Giratina',
+    'アルセウス': 'Arceus'
+  };
+  const CN_NAME_OVERRIDES = {
+    '伊裳尔塔尔': 'Yveltal',
+    '伊裴爾塔爾': 'Yveltal',
+    '焰白酋雷姆': 'White Kyurem',
+    '皮卡丘': 'Pikachu',
+    '喷火龙': 'Charizard',
+    '噴火龍': 'Charizard',
+    '妙蛙种子': 'Bulbasaur',
+    '妙蛙種子': 'Bulbasaur',
+    '妙蛙草': 'Ivysaur',
+    '妙蛙花': 'Venusaur',
+    '杰尼龟': 'Squirtle',
+    '傑尼龜': 'Squirtle',
+    '卡咪龟': 'Wartortle',
+    '卡咪龜': 'Wartortle',
+    '水箭龟': 'Blastoise',
+    '水箭龜': 'Blastoise',
+    '小火龙': 'Charmander',
+    '小火龍': 'Charmander',
+    '火恐龙': 'Charmeleon',
+    '火恐龍': 'Charmeleon',
+    '梦幻': 'Mew',
+    '夢幻': 'Mew',
+    '超梦': 'Mewtwo',
+    '超夢': 'Mewtwo',
+    '耿鬼': 'Gengar',
+    '路卡利欧': 'Lucario',
+    '路卡利歐': 'Lucario',
+    '烈空坐': 'Rayquaza',
+    '骑拉帝纳': 'Giratina',
+    '騎拉帝納': 'Giratina',
+    '阿尔宙斯': 'Arceus',
+    '阿爾宙斯': 'Arceus'
   };
   const englishNameCache = new Map();
 
@@ -23,7 +85,7 @@
   }
   function latinFallbackName(value) {
     const clean = text(value);
-    return JP_NAME_OVERRIDES[clean] || '';
+    return JP_NAME_OVERRIDES[clean] || CN_NAME_OVERRIDES[clean] || '';
   }
   function activeLanguageCode() {
     return text(document.querySelector('#langChips .chip.active')?.dataset?.code || '');
@@ -57,7 +119,7 @@
 
     const originalName = text(next.originalName || dom.originalName || scan.originalName || scan.visibleTitle || next.name);
     const rawCardmarket = text(next.cardmarketName || dom.cardmarketName || scan.cardmarketName || scan.englishName || next.name);
-    const mapped = latinFallbackName(rawCardmarket) || latinFallbackName(originalName);
+    const mapped = latinFallbackName(rawCardmarket) || latinFallbackName(originalName) || latinFallbackName(scan.name) || latinFallbackName(scan.visibleTitle);
     const cardmarketName = hasAsianText(rawCardmarket) && mapped ? mapped : rawCardmarket;
     const englishName = text(next.englishName || scan.englishName || mapped || (likelyEnglish(cardmarketName) ? cardmarketName : ''));
     const visibleTitle = text(next.visibleTitle || scan.visibleTitle || (hasAsianText(originalName) ? originalName : ''));
@@ -68,7 +130,7 @@
     next.cardmarketName = cardmarketName;
     next.englishName = englishName;
     next.visibleTitle = visibleTitle;
-    next.name = text(next.name || cardmarketName || englishName || originalName || visibleTitle);
+    next.name = text(englishName || cardmarketName || next.name || originalName || visibleTitle);
     next.number = text(next.number || fullNumber || searchNumber);
     next.fullNumber = fullNumber;
     next.searchNumber = searchNumber;
@@ -78,6 +140,29 @@
     next.language = text(next.language || dom.language || scan.language);
     next.languageGuess = text(next.languageGuess || scan.languageGuess || scan.language);
     return next;
+  }
+
+  function compactSearchResponse(data) {
+    if (!data || !Array.isArray(data.cards)) return data;
+    const maxCards = window.matchMedia && window.matchMedia('(max-width: 820px)').matches ? 5 : 8;
+    return {
+      ...data,
+      cards: data.cards.slice(0, maxCards).map((card) => ({
+        ...card,
+        imageLarge: '',
+        imageSmall: text(card.imageSmall || card.image || '').replace('/high.', '/low.')
+      }))
+    };
+  }
+
+  function responseFromJson(originalResponse, data) {
+    const headers = new Headers(originalResponse.headers);
+    headers.set('Content-Type', 'application/json; charset=utf-8');
+    return new Response(JSON.stringify(data), {
+      status: originalResponse.status,
+      statusText: originalResponse.statusText,
+      headers
+    });
   }
 
   async function fetchJson(url) {
@@ -157,6 +242,39 @@
     }, true);
   }
 
+  function installSearchButtonGuard() {
+    if (document.documentElement.dataset.cwSearchGuard === '1') return;
+    document.documentElement.dataset.cwSearchGuard = '1';
+    document.addEventListener('click', (event) => {
+      const button = event.target.closest('#singleTcgSearchBtn,.findM');
+      if (!button) return;
+      if (button.dataset.cwBusy === '1') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+      button.dataset.cwBusy = '1';
+      button.disabled = true;
+      const oldText = button.textContent;
+      button.dataset.cwOldText = oldText;
+      button.textContent = 'Suche...';
+      setTimeout(() => {
+        button.dataset.cwBusy = '0';
+        button.disabled = false;
+        button.textContent = button.dataset.cwOldText || oldText;
+      }, 10000);
+    }, true);
+  }
+
+  function releaseSearchButtons() {
+    document.querySelectorAll('#singleTcgSearchBtn,.findM').forEach((button) => {
+      if (button.dataset.cwBusy !== '1') return;
+      button.dataset.cwBusy = '0';
+      button.disabled = false;
+      button.textContent = button.dataset.cwOldText || 'Treffer suchen';
+    });
+  }
+
   function installFetchPatch() {
     if (window.fetch.__cwCardSearchPatched) return;
     const originalFetch = window.fetch.bind(window);
@@ -173,24 +291,27 @@
       }
       if (isCardSearch && !init?.signal && typeof AbortController !== 'undefined') {
         controller = new AbortController();
-        timer = setTimeout(() => controller.abort(), 9000);
+        timer = setTimeout(() => controller.abort(), 7000);
         init = { ...(init || {}), signal: controller.signal };
       }
       try {
         const response = await originalFetch(input, init);
         if (isCardSearch) {
           try {
-            window.__cwLastCardSearchResponse = await response.clone().json();
+            const data = compactSearchResponse(await response.clone().json());
+            window.__cwLastCardSearchResponse = data;
             setTimeout(enhanceMatchUi, 80);
             setTimeout(enhanceMatchUi, 350);
+            return responseFromJson(response, data);
           } catch {}
         }
         return response;
       } catch (err) {
-        if (isCardSearch && err?.name === 'AbortError') throw new Error('Treffersuche dauert zu lange. Bitte nochmal druecken.');
+        if (isCardSearch && err?.name === 'AbortError') throw new Error('Treffersuche dauert zu lange. Bitte nochmal druecken oder Name + Nummer pruefen.');
         throw err;
       } finally {
         if (timer) clearTimeout(timer);
+        if (isCardSearch) setTimeout(releaseSearchButtons, 80);
       }
     };
     patched.__cwCardSearchPatched = true;
@@ -209,6 +330,8 @@
   function attachImageFallback(img) {
     if (!img || img.dataset.cwImageFallback === '1') return;
     img.dataset.cwImageFallback = '1';
+    img.loading = 'lazy';
+    img.decoding = 'async';
     img.dataset.cwFallbacks = JSON.stringify(imageFallbacks(img.getAttribute('src')));
     img.addEventListener('error', () => {
       let fallbacks = [];
@@ -217,6 +340,7 @@
       img.dataset.cwFallbacks = JSON.stringify(fallbacks);
       if (next) img.src = next;
       else {
+        img.removeAttribute('src');
         img.alt = 'Kein Bild verfuegbar';
         img.style.opacity = '0.35';
       }
@@ -245,6 +369,7 @@
     installFetchPatch();
     installObserver();
     installMatchRepair();
+    installSearchButtonGuard();
     enhanceMatchUi();
     loadHelper('set-db-helper.js', '__cwSetDbHelper', 'cw-set-db-helper');
     loadHelper('mobile-input-helper.js', '__cwMobileInputHelper', 'cw-mobile-input-helper');
