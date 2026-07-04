@@ -10,7 +10,19 @@
     korean: '8', koreanisch: '8', ko: '8', kr: '8',
     chinese: '7', chinesisch: '7', zh: '7', cn: '7'
   };
-  const translationCache = new Map();
+  const STATIC_NAME_ALIASES = {
+    'ママンボウ': 'Alomomola',
+    'イベルタル': 'Yveltal',
+    '伊裳尔塔尔': 'Yveltal',
+    'レパルダス': 'Liepard',
+    'イシズマイ': 'Dwebble',
+    'サンダース': 'Jolteon',
+    'ピカチュウ': 'Pikachu',
+    'リザードン': 'Charizard',
+    '皮卡丘': 'Pikachu',
+    '喷火龙': 'Charizard',
+    '噴火龍': 'Charizard'
+  };
 
   function normalize(value) {
     return String(value || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -31,12 +43,31 @@
       .replace(/\s+V$/i, '-V')
       .replace(/\s+GX$/i, '-GX');
   }
+  function aliasFor(card) {
+    for (const value of [card?.cardmarketName, card?.englishName, card?.originalName, card?.visibleTitle, card?.name]) {
+      const alias = STATIC_NAME_ALIASES[text(value)];
+      if (alias) return alias;
+    }
+    return '';
+  }
+  function lightweightTranslate(card) {
+    const alias = aliasFor(card);
+    if (!alias) return card;
+    return {
+      ...card,
+      originalName: text(card.originalName || card.visibleTitle || card.name || card.cardmarketName),
+      visibleTitle: text(card.visibleTitle || card.originalName || card.name || card.cardmarketName),
+      englishName: alias,
+      cardmarketName: toCardmarketName(alias)
+    };
+  }
   function bestSearchName(card) {
-    const cm = text(card?.cardmarketName);
+    const translated = lightweightTranslate(card || {});
+    const cm = text(translated?.cardmarketName);
     if (cm && !hasAsianText(cm)) return cm;
-    const english = text(card?.englishName);
+    const english = text(translated?.englishName);
     if (english && !hasAsianText(english)) return toCardmarketName(english);
-    return text(card?.originalName || card?.visibleTitle || card?.name || cm);
+    return text(translated?.originalName || translated?.visibleTitle || translated?.name || cm);
   }
   function visibleOrBestName(card) {
     const visible = text(card?.visibleTitle);
@@ -79,69 +110,9 @@
     if (!chip) return;
     chip.click();
   }
-  function translationKey(card) {
-    return [card?.name, card?.originalName, card?.visibleTitle, card?.cardmarketName, card?.fullNumber, card?.number, card?.searchNumber, card?.setCode, card?.setName].map(text).join('|');
-  }
-  function translatedFromMatch(card, match) {
-    if (!match) return card;
-    const matchName = text(match.cardmarketName || match.englishName || match.name);
-    const englishName = !hasAsianText(matchName) ? matchName.replace(/-/g, ' ') : '';
-    return {
-      ...card,
-      originalName: text(card.originalName || card.visibleTitle || card.name || match.name),
-      visibleTitle: text(card.visibleTitle || card.originalName || card.name || match.name),
-      englishName: englishName || card.englishName || '',
-      cardmarketName: !hasAsianText(matchName) ? toCardmarketName(matchName) : card.cardmarketName,
-      fullNumber: card.fullNumber || match.number || card.number || '',
-      searchNumber: card.searchNumber || String(match.number || card.number || '').split('/')[0],
-      setCode: card.setCode || match.setCode || '',
-      setName: match.cardmarketSetName || card.setName || match.setName || '',
-      cardmarketSetName: match.cardmarketSetName || match.setName || card.cardmarketSetName || '',
-      imageSmall: match.imageSmall || card.imageSmall || '',
-      imageLarge: match.imageLarge || card.imageLarge || '',
-      i18nSource: match.source || 'card-search'
-    };
-  }
-  async function translateCard(card) {
-    if (!card || !hasAsianText(`${card.name || ''} ${card.originalName || ''} ${card.visibleTitle || ''} ${card.cardmarketName || ''}`)) return card;
-    const key = translationKey(card);
-    if (translationCache.has(key)) return translationCache.get(key);
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 14000);
-    try {
-      const response = await fetch('/api/card-search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          name: card.cardmarketName || card.originalName || card.visibleTitle || card.name || '',
-          originalName: card.originalName || card.visibleTitle || card.name || '',
-          cardmarketName: card.cardmarketName || '',
-          visibleTitle: card.visibleTitle || '',
-          number: card.fullNumber || card.searchNumber || card.number || '',
-          fullNumber: card.fullNumber || card.number || '',
-          searchNumber: card.searchNumber || String(card.number || '').split('/')[0],
-          setCode: card.setCode || '',
-          setName: card.setName || '',
-          languageCode: card.languageCode || languageCode(card),
-          language: card.language || card.languageGuess || ''
-        })
-      });
-      const data = await response.json().catch(() => ({}));
-      const match = Array.isArray(data.cards) ? data.cards[0] : null;
-      const translated = data?.ok && match ? translatedFromMatch(card, match) : card;
-      translationCache.set(key, translated);
-      return translated;
-    } catch {
-      translationCache.set(key, card);
-      return card;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-  function applyTranslatedSingle(card) {
-    if (!card) return;
+  function applyTranslatedSingle(rawCard) {
+    if (!rawCard) return;
+    const card = lightweightTranslate(rawCard);
     const original = document.getElementById('originalName');
     const cardmarket = document.getElementById('cardmarketName');
     const fullNumber = document.getElementById('fullNumber');
@@ -160,7 +131,7 @@
     if (card.cardmarketSetName || card.setName) setInputValue(setName, card.cardmarketSetName || card.setName);
 
     applyLanguageChip(languageCode(card));
-    if (hint && (card.englishName || card.visibleTitle || card.languageGuess || card.i18nSource)) {
+    if (hint && (card.englishName || card.visibleTitle || card.languageGuess)) {
       const lang = card.languageGuess ? `Sprache: ${card.languageGuess}. ` : '';
       const visible = card.visibleTitle ? `Originaltitel: ${card.visibleTitle}. ` : '';
       const english = card.englishName ? `Suchname: ${card.englishName}.` : '';
@@ -171,17 +142,13 @@
   function enhanceSingleCard(card) {
     if (!card || typeof card !== 'object') return;
     applyTranslatedSingle(card);
-    if (hasAsianText(`${card.name || ''} ${card.originalName || ''} ${card.visibleTitle || ''} ${card.cardmarketName || ''}`)) {
-      translateCard(card).then((translated) => {
-        applyTranslatedSingle(translated);
-        if (window.__cwLastScanLanguagePayload?.cards?.[0]) {
-          window.__cwLastScanLanguagePayload.cards[0] = { ...window.__cwLastScanLanguagePayload.cards[0], ...translated };
-        }
-      }).catch(() => {});
+    if (window.__cwLastScanLanguagePayload?.cards?.[0]) {
+      window.__cwLastScanLanguagePayload.cards[0] = { ...window.__cwLastScanLanguagePayload.cards[0], ...lightweightTranslate(card) };
     }
   }
-  function enhanceMultiCard(domCard, card) {
-    if (!domCard || !card) return;
+  function enhanceMultiCard(domCard, rawCard) {
+    if (!domCard || !rawCard) return;
+    const card = lightweightTranslate(rawCard);
     const original = domCard.querySelector('input[data-k="originalName"]');
     const cardmarket = domCard.querySelector('input[data-k="cardmarketName"]');
     setInputValue(original, visibleOrBestName(card));
@@ -189,18 +156,11 @@
     domCard.dataset.scanLanguageCode = languageCode(card);
     domCard.dataset.scanVisibleTitle = card.visibleTitle || '';
     domCard.dataset.scanEnglishName = card.englishName || '';
-    if (hasAsianText(`${card.name || ''} ${card.originalName || ''} ${card.visibleTitle || ''} ${card.cardmarketName || ''}`)) {
-      translateCard(card).then((translated) => {
-        setInputValue(original, visibleOrBestName(translated));
-        setInputValue(cardmarket, bestSearchName(translated));
-        domCard.dataset.scanEnglishName = translated.englishName || '';
-      }).catch(() => {});
-    }
   }
   function normalizeScanPayload(payload) {
     if (!payload || !Array.isArray(payload.cards)) return payload;
     payload.cards = payload.cards.map(card => {
-      const next = { ...card };
+      const next = lightweightTranslate({ ...card });
       if (!next.originalName && (next.englishName || next.visibleTitle || next.name)) next.originalName = next.visibleTitle || next.name || next.englishName;
       if (!next.cardmarketName && next.englishName) next.cardmarketName = next.englishName;
       return next;
