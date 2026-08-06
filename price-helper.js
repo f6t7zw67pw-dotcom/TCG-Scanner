@@ -1,5 +1,6 @@
 // Server-side price lookup UI. No provider credentials are stored in the browser.
 (function () {
+  const { escapeHtml, openExternal, safeHttpUrl } = window.CardWizardSecurity;
   function $(id) { return document.getElementById(id); }
   function toast(text) {
     if (typeof window.toast === 'function') window.toast(text);
@@ -49,17 +50,18 @@
       target.innerHTML = '<div class="cwPriceEmpty">Aktuell kein Preis verfuegbar.</div>';
       return;
     }
+    const sourceUrl = safeHttpUrl(price.url);
     target.innerHTML = `
       <div class="cwPriceResult">
-        <div><b>${money(price.amount, price.currency)}</b><span>${price.cardName || ''}</span></div>
-        <div class="small">${price.set || price.setCode || ''} ${price.number ? '· ' + price.number : ''}</div>
-        <div class="small">Quelle: ${price.source || 'Preisprovider'} · ${new Date(price.fetchedAt).toLocaleString('de-DE')}</div>
-        <div class="actions"><button class="btn primary cwUsePrice" type="button">Preis uebernehmen</button>${price.url ? '<button class="btn ghost cwOpenPrice" type="button">Quelle oeffnen</button>' : ''}</div>
+        <div><b>${escapeHtml(money(price.amount, price.currency))}</b><span>${escapeHtml(price.cardName || '')}</span></div>
+        <div class="small">${escapeHtml(price.set || price.setCode || '')} ${price.number ? '· ' + escapeHtml(price.number) : ''}</div>
+        <div class="small">Quelle: ${escapeHtml(price.source || 'Preisprovider')} · ${escapeHtml(new Date(price.fetchedAt).toLocaleString('de-DE'))}</div>
+        <div class="actions"><button class="btn primary cwUsePrice" type="button">Preis uebernehmen</button>${sourceUrl ? '<button class="btn ghost cwOpenPrice" type="button">Quelle oeffnen</button>' : ''}</div>
       </div>
     `;
     target.querySelector('.cwUsePrice').onclick = () => onUse(price);
     const open = target.querySelector('.cwOpenPrice');
-    if (open) open.onclick = () => window.open(price.url, '_blank');
+    if (open) open.onclick = () => openExternal(sourceUrl);
   }
   function addStyle() {
     if ($('cw-price-style')) return;

@@ -3,6 +3,7 @@
 // <script src="tcg-api-ui.js"></script>
 
 (function(){
+  const security = window.CardWizardSecurity;
   function $(id){ return document.getElementById(id); }
   function toast(t){
     const el = $('toast');
@@ -91,13 +92,13 @@
       const item = document.createElement('div');
       item.className = 'tcgMatchItem';
       item.innerHTML = `
-        <img src="${card.imageSmall || ''}" alt="">
+        <img${security.safeImageUrl(card.imageSmall) ? ` src="${security.escapeHtml(security.safeImageUrl(card.imageSmall))}"` : ''} alt="">
         <div>
-          <b>${card.name || '-'}</b>
-          <div class="tcgMatchMeta">${card.setName || '-'} · ${card.setCode || '-'} · ${card.number || '-'} · ${card.rarity || ''}</div>
+          <b>${security.escapeHtml(card.name || '-')}</b>
+          <div class="tcgMatchMeta">${security.escapeHtml(card.setName || '-')} · ${security.escapeHtml(card.setCode || '-')} · ${security.escapeHtml(card.number || '-')} · ${security.escapeHtml(card.rarity || '')}</div>
           <div class="tcgMatchActions">
             <button class="tcgMiniBtn useMatch" type="button">Übernehmen</button>
-            ${card.imageLarge ? `<button class="tcgMiniBtn tcgGhostBtn openImg" type="button">Bild</button>` : ''}
+            ${security.safeHttpUrl(card.imageLarge) ? `<button class="tcgMiniBtn tcgGhostBtn openImg" type="button">Bild</button>` : ''}
           </div>
         </div>
       `;
@@ -106,7 +107,7 @@
         else applySingleMatch(card);
       };
       const imgBtn = item.querySelector('.openImg');
-      if(imgBtn) imgBtn.onclick = () => window.open(card.imageLarge, '_blank');
+      if(imgBtn) imgBtn.onclick = () => security.openExternal(card.imageLarge);
       box.appendChild(item);
     });
     target.appendChild(box);
@@ -123,7 +124,7 @@
     const target = $('singleTcgMatches') || createSingleBox();
     target.innerHTML = '<div class="tcgMatchBox">Suche Treffer...</div>';
     try{ renderMatches(target, await searchTcgCards(scan), 'single'); }
-    catch(e){ target.innerHTML = `<div class="tcgMatchBox">Fehler: ${e.message}</div>`; }
+    catch(e){ target.textContent = `Fehler: ${e.message || 'Kartensuche fehlgeschlagen'}`; }
   }
 
   function createSingleBox(){

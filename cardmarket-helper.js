@@ -213,7 +213,7 @@
   }
 
   function openUrl(url) {
-    if (url) window.open(url, '_blank');
+    if (url) window.CardWizardSecurity.openExternal(url);
   }
 
   async function copyUrl(url) {

@@ -9,7 +9,8 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=600');
     return res.status(200).send(code + extensionLoader);
   } catch (err) {
+    console.error(JSON.stringify({ event: 'loader_error', errorName: String(err?.name || 'Error').slice(0, 80) }));
     res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-    return res.status(500).send(`console.error(${JSON.stringify(err?.message || 'Loader-Fehler')});`);
+    return res.status(500).send('console.error("Loader voruebergehend nicht verfuegbar");');
   }
 }

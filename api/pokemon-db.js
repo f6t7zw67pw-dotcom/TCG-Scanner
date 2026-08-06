@@ -63,6 +63,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ ok: true, count: Object.keys(cachedPokemon).length, pokemon: cachedPokemon, cached: false });
   } catch (err) {
-    return res.status(500).json({ ok: false, error: err?.message || 'Pokemon DB konnte nicht geladen werden' });
+    console.error(JSON.stringify({ event: 'pokemon_db_error', errorName: String(err?.name || 'Error').slice(0, 80) }));
+    return res.status(500).json({ ok: false, error: 'Pokemon DB konnte nicht geladen werden' });
   }
 }

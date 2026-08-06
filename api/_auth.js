@@ -193,7 +193,8 @@ export async function requireUser(req, res, sql = getSql()) {
 }
 
 export async function hasSessionOrAdmin(req, sql = getSql()) {
-  if (!adminTokenConfigured()) return true;
+  // Protected routes must never become public because configuration is missing.
+  if (!adminTokenConfigured() || !sql) return false;
   if (hasAdminToken(req)) return true;
   return Boolean(await getSessionUser(req, sql));
 }

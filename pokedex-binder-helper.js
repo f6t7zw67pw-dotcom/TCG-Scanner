@@ -1,5 +1,6 @@
 // Adds a 3x3 binder view for assigned Pokedex cards.
 (function () {
+  const security = window.CardWizardSecurity;
   if (window.__cwPokedexBinderHelper) return;
   window.__cwPokedexBinderHelper = true;
 
@@ -192,14 +193,17 @@
     sheet.innerHTML = pageMons.map(mon => {
       const assigned = assignedKeys(mon.id).map(key => cards.get(key)).filter(Boolean);
       const first = assigned[0];
-      const mainImage = first?.image || '';
-      const mini = assigned.slice(0, 5).map(card => card.image ? `<img src="${card.image}" alt="${escapeHtml(card.title)}">` : '').join('');
+      const mainImage = security.safeImageUrl(first?.image);
+      const mini = assigned.slice(0, 5).map(card => {
+        const url = security.safeImageUrl(card.image);
+        return url ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(card.title)}">` : '';
+      }).join('');
       const title = first ? escapeHtml(first.title) : 'Noch keine Karte zugeordnet';
       const details = first ? `${escapeHtml(first.number)} ${escapeHtml(first.setCode)} ${first.language ? '- ' + escapeHtml(first.language) : ''}` : '';
       return `<div class="binderPocket">
-        <div class="binderHeader"><div class="binderMon" title="${displayName(mon.name)}">${displayName(mon.name)}</div><div class="binderNo">#${String(mon.id).padStart(4, '0')}</div></div>
-        <img class="binderArt" src="${imageUrl(mon.id)}" alt="">
-        <div class="binderCardMain">${mainImage ? `<img src="${mainImage}" alt="${title}">` : `<div class="binderEmpty">${displayName(mon.name)}<br>keine Karte zugeordnet</div>`}</div>
+        <div class="binderHeader"><div class="binderMon" title="${escapeHtml(displayName(mon.name))}">${escapeHtml(displayName(mon.name))}</div><div class="binderNo">#${String(mon.id).padStart(4, '0')}</div></div>
+        <img class="binderArt" src="${escapeHtml(imageUrl(mon.id))}" alt="">
+        <div class="binderCardMain">${mainImage ? `<img src="${escapeHtml(mainImage)}" alt="${title}">` : `<div class="binderEmpty">${escapeHtml(displayName(mon.name))}<br>keine Karte zugeordnet</div>`}</div>
         <div class="binderFooter"><div class="binderCardTitle">${title}</div>${details ? `<div class="small">${details}</div>` : ''}<div class="binderMiniRow">${mini}${assigned.length > 1 ? `<span class="binderCount">+${assigned.length - 1}</span>` : ''}</div></div>
       </div>`;
     }).join('');

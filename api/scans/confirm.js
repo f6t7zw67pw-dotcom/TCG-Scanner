@@ -1,4 +1,5 @@
 import { getSql, hasSessionOrAdmin } from '../_auth.js';
+import { internalError } from '../_errors.js';
 import { ensureCatalogSchema, resolveCatalogUserId } from '../_catalog.js';
 import { learnConfirmedCardAliases } from '../_catalog-learning.js';
 
@@ -55,6 +56,6 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ ok: true, scanId, cardId: cardId || card?.id || '', status: 'confirmed', learned: learning });
   } catch (err) {
-    return res.status(500).json({ ok: false, error: err?.message || 'Scan-Bestaetigung fehlgeschlagen.' });
+    return internalError(res, 'Scan-Bestaetigung ist voruebergehend nicht verfuegbar.', err);
   }
 }

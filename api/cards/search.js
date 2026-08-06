@@ -1,4 +1,5 @@
 import { getSql, hasSessionOrAdmin } from '../_auth.js';
+import { internalError } from '../_errors.js';
 import { ensureCatalogSchema, normalizeCardNumber, normalizeSetCode, resolveSetCodes, searchCatalog, upsertPokemonCard } from '../_catalog.js';
 import { findLearnedAliasCards } from '../_catalog-learning.js';
 import { nameSearchVariants } from '../_name-aliases.js';
@@ -450,6 +451,6 @@ export default async function handler(req, res) {
       : (hydrated ? 'catalog+pokemon-tcg-api' : 'catalog');
     return res.status(200).json({ ok: true, source, setCodes, cards: resultCards.slice(0, 8) });
   } catch (err) {
-    return res.status(500).json({ ok: false, error: err?.message || 'Katalogsuche fehlgeschlagen.' });
+    return internalError(res, 'Katalogsuche ist voruebergehend nicht verfuegbar.', err);
   }
 }

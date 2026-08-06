@@ -1,5 +1,6 @@
 // Stable scan review panel for single-card scans.
 (function () {
+  const security = window.CardWizardSecurity;
   let latestScan = null;
   let loading = false;
 
@@ -13,10 +14,7 @@
     if (typeof window.toast === 'function') window.toast(message);
     else console.log(message);
   }
-  function escapeHtml(value) {
-    return String(value || '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
-  }
-  function escapeAttr(value) { return escapeHtml(value); }
+  const escapeHtml = security.escapeHtml;
   function hasAsianText(value) {
     return /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/.test(String(value || ''));
   }
@@ -200,7 +198,8 @@
     const cmName = stableCardmarketName(card);
     const url = typeof window.buildUrl === 'function' ? window.buildUrl() : ($('cmUrl')?.textContent || '');
     return {
-      id: Date.now(),
+      id: globalThis.crypto?.randomUUID?.() || `card-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      version: 1,
       catalogCardId: card.id || '',
       sourceId: card.sourceId || '',
       originalName: stableOriginalName(card) || $('originalName')?.value || '',
@@ -220,7 +219,8 @@
       imageLarge: card.imageLarge || '',
       cardmarketUrl: url && !url.includes('Noch nicht genug') ? url : '',
       confirmedScanId: latestScan?.scanId || '',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
   }
   function readStore() {
@@ -288,7 +288,7 @@
     }
     target.innerHTML = cards.slice(0, 3).map((card, index) => `
       <article class="cwScanCandidate" data-index="${index}">
-        ${card.imageSmall || card.imageLarge ? `<img src="${escapeAttr(card.imageSmall || card.imageLarge)}" alt="">` : '<img alt="">'}
+        ${security.safeImageUrl(card.imageSmall || card.imageLarge) ? `<img src="${escapeHtml(security.safeImageUrl(card.imageSmall || card.imageLarge))}" alt="">` : '<img alt="">'}
         <div>
           <b>${escapeHtml(stableCardmarketName(card) || card.name || 'Unbekannte Karte')}</b>
           <div class="cwScanMeta">${escapeHtml(card.cardmarketSetName || card.setName || '-')} · ${escapeHtml(card.setCode || '-')} · Nr. ${escapeHtml(card.number || '-')}</div>
