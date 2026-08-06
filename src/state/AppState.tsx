@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { api } from '../lib/api';
 import { mergeCards, normalizeCard, storage } from '../lib/storage';
 import type { CardRecord, UserInfo, ViewId } from '../types';
+import { normalizeCardModel } from '../domain/cardModel';
 
 interface AppStateValue {
   view: ViewId;
@@ -51,9 +52,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateCard = useCallback((id: string, patch: Partial<CardRecord>) => {
-    setCards((current) => current.map((card) => card.id === id ? {
-      ...card, ...patch, id: card.id, version: card.version + 1, updatedAt: new Date().toISOString(),
-    } : card));
+    const variantFields = ['cardId', 'language', 'finish', 'edition', 'treatment', 'gradingProvider', 'grade'];
+    const refreshVariant = variantFields.some((key) => key in patch);
+    setCards((current) => current.map((card) => card.id === id ? normalizeCardModel({
+      ...card, ...patch, ...(refreshVariant ? { variantId: '' } : {}), id: card.id,
+      version: card.version + 1, updatedAt: new Date().toISOString(),
+    }) as CardRecord : card));
     setDirtyIds((current) => new Set(current).add(id));
   }, []);
 

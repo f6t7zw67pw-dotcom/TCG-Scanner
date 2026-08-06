@@ -8,6 +8,7 @@ import {
   validCard
 } from './_collection-sync.js';
 import { internalError } from './_errors.js';
+import { normalizeCollectionCard } from './_card-model.js';
 
 const DEFAULT_USER = 'default';
 let schemaReady = false;
@@ -19,6 +20,18 @@ async function ensureSchema(sql) {
       id TEXT NOT NULL,
       user_id TEXT NOT NULL DEFAULT 'default',
       payload JSONB NOT NULL,
+      card_id TEXT,
+      variant_id TEXT,
+      language_code TEXT,
+      finish TEXT,
+      edition TEXT,
+      condition TEXT,
+      grading_provider TEXT,
+      grade TEXT,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      purchase_price NUMERIC(12,2),
+      sale_value NUMERIC(12,2),
+      currency TEXT NOT NULL DEFAULT 'EUR',
       version BIGINT NOT NULL DEFAULT 1,
       client_updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       deleted_at TIMESTAMPTZ,
@@ -30,6 +43,18 @@ async function ensureSchema(sql) {
   await sql`ALTER TABLE cw_collection_cards ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1`;
   await sql`ALTER TABLE cw_collection_cards ADD COLUMN IF NOT EXISTS client_updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`;
   await sql`ALTER TABLE cw_collection_cards ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`;
+  await sql`ALTER TABLE cw_collection_cards ADD COLUMN IF NOT EXISTS card_id TEXT`;
+  await sql`ALTER TABLE cw_collection_cards ADD COLUMN IF NOT EXISTS variant_id TEXT`;
+  await sql`ALTER TABLE cw_collection_cards ADD COLUMN IF NOT EXISTS language_code TEXT`;
+  await sql`ALTER TABLE cw_collection_cards ADD COLUMN IF NOT EXISTS finish TEXT`;
+  await sql`ALTER TABLE cw_collection_cards ADD COLUMN IF NOT EXISTS edition TEXT`;
+  await sql`ALTER TABLE cw_collection_cards ADD COLUMN IF NOT EXISTS condition TEXT`;
+  await sql`ALTER TABLE cw_collection_cards ADD COLUMN IF NOT EXISTS grading_provider TEXT`;
+  await sql`ALTER TABLE cw_collection_cards ADD COLUMN IF NOT EXISTS grade TEXT`;
+  await sql`ALTER TABLE cw_collection_cards ADD COLUMN IF NOT EXISTS quantity INTEGER NOT NULL DEFAULT 1`;
+  await sql`ALTER TABLE cw_collection_cards ADD COLUMN IF NOT EXISTS purchase_price NUMERIC(12,2)`;
+  await sql`ALTER TABLE cw_collection_cards ADD COLUMN IF NOT EXISTS sale_value NUMERIC(12,2)`;
+  await sql`ALTER TABLE cw_collection_cards ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'EUR'`;
   await sql`
     DO $$
     BEGIN
@@ -51,6 +76,7 @@ async function ensureSchema(sql) {
     END $$
   `;
   await sql`CREATE INDEX IF NOT EXISTS cw_collection_cards_user_updated_idx ON cw_collection_cards (user_id, updated_at DESC)`;
+  await sql`CREATE INDEX IF NOT EXISTS cw_collection_cards_user_variant_idx ON cw_collection_cards (user_id, variant_id)`;
   schemaReady = true;
 }
 
@@ -96,39 +122,62 @@ async function readCollection(req, res, sql, userId) {
       `;
   const cards = rows.map((row) => row.deleted_at
     ? { id: row.id, version: Number(row.version), updatedAt: row.updated_at, deleted: true }
-    : { ...row.payload, id: row.id, version: Number(row.version), updatedAt: row.payload?.updatedAt || row.updated_at });
+    : normalizeCollectionCard({ ...row.payload, id: row.id, version: Number(row.version), updatedAt: row.payload?.updatedAt || row.updated_at }));
   return res.status(200).json({ ok: true, cards, count: cards.length, incremental: Boolean(since), syncCursor: cursor });
 }
 
 async function upsertCollection(req, res, sql, userId) {
   const parsed = readIncoming(req);
   if (parsed.error) return res.status(parsed.error[0]).json({ ok: false, error: parsed.error[1] });
-  const records = parsed.cards.map((card) => ({
-    id: card.id,
-    payload: card,
+  const records = parsed.cards.map((input) => {
+    const card = normalizeCollectionCard(input);
+    return {
+    id: card.id, payload: card,
     version: card.version,
-    client_updated_at: card.updatedAt
-  }));
+    client_updated_at: card.updatedAt,
+    card_id: card.cardId || null, variant_id: card.variantId || null, language_code: card.language || null,
+    finish: card.finish, edition: card.edition, condition: card.condition,
+    grading_provider: card.gradingProvider || null, grade: card.grade || null, quantity: card.quantity,
+    purchase_price: card.purchasePrice, sale_value: card.saleValue, currency: card.currency
+  }; });
   if (!records.length) return res.status(200).json({ ok: true, count: 0, accepted: 0, conflicts: 0, mode: 'incremental-upsert' });
 
   const rows = await sql`
     WITH incoming AS (
-      SELECT item.id, item.payload, item.version, item.client_updated_at
+      SELECT item.id, item.payload, item.version, item.client_updated_at, item.card_id, item.variant_id,
+             item.language_code, item.finish, item.edition, item.condition, item.grading_provider, item.grade,
+             item.quantity, item.purchase_price, item.sale_value, item.currency
       FROM jsonb_to_recordset(${JSON.stringify(records)}::jsonb)
-        AS item(id TEXT, payload JSONB, version BIGINT, client_updated_at TIMESTAMPTZ)
+        AS item(id TEXT, payload JSONB, version BIGINT, client_updated_at TIMESTAMPTZ, card_id TEXT, variant_id TEXT,
+          language_code TEXT, finish TEXT, edition TEXT, condition TEXT, grading_provider TEXT, grade TEXT,
+          quantity INTEGER, purchase_price NUMERIC, sale_value NUMERIC, currency TEXT)
     ), existing AS (
       SELECT c.id, c.payload, c.version, c.client_updated_at
       FROM cw_collection_cards c
       JOIN incoming i ON i.id = c.id
       WHERE c.user_id = ${userId}
     ), upserted AS (
-      INSERT INTO cw_collection_cards (user_id, id, payload, version, client_updated_at, deleted_at, updated_at)
-      SELECT ${userId}, id, payload, version, client_updated_at, NULL, now()
+      INSERT INTO cw_collection_cards (user_id, id, payload, version, client_updated_at, deleted_at, updated_at,
+        card_id, variant_id, language_code, finish, edition, condition, grading_provider, grade, quantity, purchase_price, sale_value, currency)
+      SELECT ${userId}, id, payload, version, client_updated_at, NULL, now(), card_id, variant_id, language_code,
+        finish, edition, condition, grading_provider, grade, quantity, purchase_price, sale_value, currency
       FROM incoming
       ON CONFLICT (user_id, id) DO UPDATE SET
         payload = EXCLUDED.payload,
         version = EXCLUDED.version,
         client_updated_at = EXCLUDED.client_updated_at,
+        card_id = EXCLUDED.card_id,
+        variant_id = EXCLUDED.variant_id,
+        language_code = EXCLUDED.language_code,
+        finish = EXCLUDED.finish,
+        edition = EXCLUDED.edition,
+        condition = EXCLUDED.condition,
+        grading_provider = EXCLUDED.grading_provider,
+        grade = EXCLUDED.grade,
+        quantity = EXCLUDED.quantity,
+        purchase_price = EXCLUDED.purchase_price,
+        sale_value = EXCLUDED.sale_value,
+        currency = EXCLUDED.currency,
         deleted_at = NULL,
         updated_at = now()
       WHERE EXCLUDED.version > cw_collection_cards.version

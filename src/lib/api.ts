@@ -41,7 +41,7 @@ export const api = {
   history: () => request<ApiEnvelope & { scans: ScanHistoryEntry[] }>('/api/scans?limit=50'),
   clearHistory: () => request<ApiEnvelope>('/api/scans', { method: 'DELETE' }),
   pokemon: () => request<ApiEnvelope & { pokemon: Record<string, string> }>('/api/pokemon-db'),
-  price: (card: CardRecord) => request<ApiEnvelope & { price?: string | number; provider?: string; fetchedAt?: string; source?: string }>('/api/prices', {
+  price: (card: CardRecord) => request<ApiEnvelope & { price?: string | number | { amount?: number; fetchedAt?: string }; provider?: string; fetchedAt?: string; source?: string }>('/api/prices', {
     method: 'POST', body: JSON.stringify({
       catalogId: card.catalogId || card.sourceId || '', name: card.cardmarketName || card.englishName || card.originalName,
       number: card.fullNumber || card.searchNumber, setCode: card.setCode,

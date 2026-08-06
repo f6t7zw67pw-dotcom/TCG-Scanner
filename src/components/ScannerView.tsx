@@ -13,9 +13,15 @@ function CardEditor({ card, onChange }: { card: CardRecord; onChange: (card: Car
   return <div className="form-grid">
     {field('originalName', 'Kartenname')}{field('cardmarketName', 'Englisch / Cardmarket')}
     {field('fullNumber', 'Kartennummer')}{field('setCode', 'Set-Code')}{field('setName', 'Set-Name')}
-    <label>Zustand<select value={card.condition || ''} onChange={(event) => onChange({ ...card, condition: event.target.value })}>
-      <option value="">Nicht bewertet</option><option>Near Mint</option><option>Excellent</option><option>Good</option><option>Played</option><option>Poor</option>
+    <label>Sprache<input value={card.language || ''} onChange={(event) => onChange({ ...card, language: event.target.value, variantId: '' })} placeholder="de, en, ja …" /></label>
+    <label>Oberfläche<select value={card.finish || 'normal'} onChange={(event) => onChange({ ...card, finish: event.target.value as CardRecord['finish'], variantId: '' })}><option value="normal">Normal</option><option value="holo">Holo</option><option value="reverse_holo">Reverse Holo</option><option value="other">Andere</option></select></label>
+    <label>Edition<select value={card.edition || 'unlimited'} onChange={(event) => onChange({ ...card, edition: event.target.value as CardRecord['edition'], variantId: '' })}><option value="unlimited">Unlimited</option><option value="first_edition">First Edition</option><option value="promo">Promo</option><option value="other">Andere</option></select></label>
+    <label>Treatment<input value={card.treatment || ''} onChange={(event) => onChange({ ...card, treatment: event.target.value, variantId: '' })} placeholder="standard, illustration_rare …" /></label>
+    <label>Zustand<select value={card.condition || 'ungraded'} onChange={(event) => onChange({ ...card, condition: event.target.value as CardRecord['condition'] })}>
+      <option value="ungraded">Nicht bewertet</option><option value="near_mint">Near Mint</option><option value="excellent">Excellent</option><option value="good">Good</option><option value="played">Played</option><option value="poor">Poor</option>
     </select></label>
+    <label>Grading-Anbieter<input value={card.gradingProvider || ''} onChange={(event) => onChange({ ...card, gradingProvider: event.target.value, variantId: '' })} placeholder="PSA, BGS, CGC …" /></label>
+    <label>Grade<input value={card.grade || ''} onChange={(event) => onChange({ ...card, grade: event.target.value, variantId: '' })} placeholder="10, 9.5 …" /></label>
   </div>;
 }
 
