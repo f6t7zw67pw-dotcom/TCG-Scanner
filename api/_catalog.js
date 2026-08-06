@@ -280,6 +280,9 @@ export async function ensureCatalogSchema(sql) {
       label TEXT NOT NULL,
       language TEXT,
       finish TEXT,
+      edition TEXT,
+      treatment TEXT,
+      promo BOOLEAN NOT NULL DEFAULT false,
       raw JSONB,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -322,6 +325,9 @@ export async function ensureCatalogSchema(sql) {
   `;
 
   await sql`CREATE INDEX IF NOT EXISTS cw_cards_name_folded_idx ON cw_cards (name_folded)`;
+  await sql`ALTER TABLE cw_card_variants ADD COLUMN IF NOT EXISTS edition TEXT`;
+  await sql`ALTER TABLE cw_card_variants ADD COLUMN IF NOT EXISTS treatment TEXT`;
+  await sql`ALTER TABLE cw_card_variants ADD COLUMN IF NOT EXISTS promo BOOLEAN NOT NULL DEFAULT false`;
   await sql`CREATE INDEX IF NOT EXISTS cw_cards_set_number_idx ON cw_cards (game, set_code, number)`;
   await sql`CREATE INDEX IF NOT EXISTS cw_cards_set_name_idx ON cw_cards (game, set_name)`;
   await sql`CREATE INDEX IF NOT EXISTS cw_set_aliases_code_idx ON cw_set_aliases (game, code)`;
@@ -453,9 +459,17 @@ export async function upsertPokemonCard(sql, pokemonCard) {
 
   const row = inserted[0];
   await sql`
-    INSERT INTO cw_card_variants (id, card_id, variant_key, label, raw, updated_at)
-    VALUES (${`${row.id}_standard`}, ${row.id}, 'standard', 'Standard', ${JSON.stringify({ rarity: rows.card.rarity })}, now())
-    ON CONFLICT (card_id, variant_key) DO UPDATE SET raw = EXCLUDED.raw, updated_at = now()
+    INSERT INTO cw_card_variants (id, card_id, variant_key, label, language, finish, edition, treatment, promo, raw, updated_at)
+    VALUES (${`${row.id}_standard`}, ${row.id}, 'en:normal:unlimited:standard', 'Standard', 'en', 'normal', 'unlimited', 'standard', false, ${JSON.stringify({ rarity: rows.card.rarity })}, now())
+    ON CONFLICT (card_id, variant_key) DO UPDATE SET
+      label = EXCLUDED.label,
+      language = EXCLUDED.language,
+      finish = EXCLUDED.finish,
+      edition = EXCLUDED.edition,
+      treatment = EXCLUDED.treatment,
+      promo = EXCLUDED.promo,
+      raw = EXCLUDED.raw,
+      updated_at = now()
   `;
   return row;
 }

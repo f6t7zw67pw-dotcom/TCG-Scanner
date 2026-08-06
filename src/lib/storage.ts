@@ -1,4 +1,5 @@
 import type { CardRecord } from '../types';
+import { normalizeCardModel } from '../domain/cardModel';
 
 const COLLECTION_KEY = 'cw_collection';
 const CURSOR_KEY = 'cw_cloud_cursor';
@@ -17,7 +18,7 @@ export function newId(): string {
 
 export function normalizeCard(card: Partial<CardRecord>): CardRecord {
   const now = new Date().toISOString();
-  return { ...card, id: String(card.id || newId()), version: Math.max(1, Number(card.version) || 1), updatedAt: card.updatedAt || now };
+  return { ...normalizeCardModel(card), id: String(card.id || newId()), version: Math.max(1, Number(card.version) || 1), updatedAt: card.updatedAt || now } as CardRecord;
 }
 
 export const storage = {

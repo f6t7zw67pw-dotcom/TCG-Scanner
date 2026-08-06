@@ -51,7 +51,7 @@ export default async function handler(req, res) {
     }
 
     const model = mode === 'multi' ? (process.env.OPENAI_MULTI_MODEL || 'gpt-4o') : (process.env.OPENAI_SINGLE_MODEL || 'gpt-4o-mini');
-    const cardSchema = '{"originalName":"","visibleTitle":"","englishName":"","cardmarketName":"","fullNumber":"","searchNumber":"","setCode":"","setName":"","languageGuess":"","languageCode":"","cardType":"","cardVersion":"","condition":"","confidence":0,"warnings":[]}';
+    const cardSchema = '{"originalName":"","visibleTitle":"","englishName":"","cardmarketName":"","fullNumber":"","searchNumber":"","setCode":"","setName":"","languageGuess":"","languageCode":"","cardType":"","finish":"normal|holo|reverse_holo|other","edition":"unlimited|first_edition|promo|other","treatment":"standard|illustration_rare|special_illustration_rare|secret_rare|other","promo":false,"firstEdition":false,"condition":"","confidence":0,"warnings":[]}';
     const schema = mode === 'multi'
       ? `{"mode":"multi","listing":{"ebayPrice":"","shipping":"","listingType":"","notes":[]},"cards":[${cardSchema}]}`
       : `{"mode":"single","listing":{"ebayPrice":"","shipping":"","listingType":"","notes":[]},"cards":[${cardSchema}]}`;
@@ -67,7 +67,7 @@ export default async function handler(req, res) {
       'Kartennummern koennen unten links, unten rechts, mittig unten oder bei alten Karten nah am Rand stehen. Suche nach Mustern wie 12/102, 101/108, SVP123, TG05/TG30 oder einzelner Sammlernummer.',
       'Set-Hinweise koennen links, rechts oder unten stehen: Set-Symbol, Set-Code, Copyright-Zeile, Wizards/e-Reader Layout, Erweiterungsname oder kleine Symbole. Wenn der SetCode unsicher ist, lieber setCode leer lassen und setName oder warning setzen.',
       'Gewichte die gedruckte Kartennummer staerker als Layoutposition. Bei alten Karten ist die Position nicht verlaesslich.',
-      'Erlaubte condition-Werte sind nur: Near Mint, Excellent, Good, Played, Poor oder leer. Erlaubte cardVersion-Werte sind: leer, V1, V2, V3, V4. Nutze V1 fuer EX/V/GX, V2 fuer Illustration Rare/Full Art, V3 fuer Special Illustration Rare, V4 fuer Gold/Secret Rare. Bei Trainer/Energy normalerweise leer lassen.',
+      'Erlaubte condition-Werte sind nur: near_mint, excellent, good, played, poor oder ungraded. finish beschreibt ausschliesslich die Oberflaeche: normal, holo, reverse_holo oder other. edition beschreibt unlimited, first_edition, promo oder other. treatment beschreibt die Druckbehandlung: standard, illustration_rare, special_illustration_rare, secret_rare oder other. Verwende keine V1-V4-Kuerzel als primaere Wahrheit.',
       'Erfinde nichts. Unsichere Felder leer lassen und warnings setzen.'
     ].join(' ');
     const prompt = mode === 'multi'
