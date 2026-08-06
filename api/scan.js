@@ -1,5 +1,6 @@
 import { getSql, hasSessionOrAdmin } from './_auth.js';
 import { recordScan } from './_catalog.js';
+import { internalError } from './_errors.js';
 
 const scanBuckets = globalThis.__cwScanBuckets || new Map();
 globalThis.__cwScanBuckets = scanBuckets;
@@ -89,7 +90,12 @@ export default async function handler(req, res) {
       })
     });
     const data = await response.json();
-    if (!response.ok) return res.status(response.status).json({ ok: false, error: data?.error?.message || 'OpenAI Fehler' });
+    if (!response.ok) {
+      console.warn(JSON.stringify({ event: 'scan_provider_error', providerStatus: response.status }));
+      const status = response.status === 429 ? 429 : 502;
+      const message = response.status === 429 ? 'Scan-Limit des KI-Anbieters erreicht.' : 'KI-Anbieter ist voruebergehend nicht verfuegbar.';
+      return res.status(status).json({ ok: false, error: message });
+    }
     const text = data?.choices?.[0]?.message?.content || '{}';
     let parsed;
     try { parsed = JSON.parse(text); } catch { parsed = { mode, listing: {}, cards: [], raw: text }; }
@@ -110,6 +116,6 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ ok: true, model, scanId, ...parsed });
   } catch (err) {
-    return res.status(500).json({ ok: false, error: err?.message || 'Serverfehler' });
+    return internalError(res, 'Scan ist voruebergehend nicht verfuegbar.', err);
   }
 }

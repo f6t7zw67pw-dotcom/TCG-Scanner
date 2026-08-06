@@ -1,4 +1,5 @@
 import { getSql, hasSessionOrAdmin } from './_auth.js';
+import { internalError } from './_errors.js';
 import { ensureCatalogSchema, recordScan, resolveCatalogUserId } from './_catalog.js';
 
 const scanHistoryBuckets = globalThis.__cwScanHistoryBuckets || new Map();
@@ -86,6 +87,6 @@ export default async function handler(req, res) {
     });
     return res.status(200).json({ ok: true, id });
   } catch (err) {
-    return res.status(500).json({ ok: false, error: err?.message || 'Scan-Historie Fehler' });
+    return internalError(res, 'Scan-Historie ist voruebergehend nicht verfuegbar.', err);
   }
 }

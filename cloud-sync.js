@@ -1,6 +1,7 @@
 // Account-based cloud sync UI for Card Wizard Pro. Uses HttpOnly session cookies after login.
 (function () {
   const AUTO_KEY = 'cw_cloud_auto';
+  const CURSOR_KEY = 'cw_cloud_cursor';
   let syncing = false;
   let pushTimer = null;
   let currentUser = null;
@@ -12,8 +13,29 @@
     else console.log(text);
   }
   function collection() {
-    try { return JSON.parse(localStorage.getItem('cw_collection') || '[]') || []; }
+    try { return normalizeLocalCards(JSON.parse(localStorage.getItem('cw_collection') || '[]') || []); }
     catch { return []; }
+  }
+  function newId() {
+    return globalThis.crypto?.randomUUID?.() || `card-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+  function validDate(value) { return Number.isFinite(Date.parse(String(value || ''))); }
+  function normalizeLocalCard(card) {
+    const next = { ...(card || {}) };
+    next.id = String(next.id || newId());
+    next.version = Math.max(1, Math.trunc(Number(next.version) || 1));
+    next.updatedAt = validDate(next.updatedAt) ? new Date(next.updatedAt).toISOString()
+      : (validDate(next.createdAt) ? new Date(next.createdAt).toISOString() : new Date().toISOString());
+    return next;
+  }
+  function normalizeLocalCards(cards) {
+    const seen = new Set();
+    return (cards || []).map((card) => {
+      const normalized = normalizeLocalCard(card);
+      if (seen.has(normalized.id)) normalized.id = newId();
+      seen.add(normalized.id);
+      return normalized;
+    });
   }
   function saveCollection(cards) {
     syncing = true;
@@ -21,6 +43,10 @@
     syncing = false;
   }
   function autoSync() { return localStorage.getItem(AUTO_KEY) === '1'; }
+  function syncCursor() { return localStorage.getItem(CURSOR_KEY) || ''; }
+  function saveSyncCursor(value) {
+    if (validDate(value)) localStorage.setItem(CURSOR_KEY, new Date(value).toISOString());
+  }
   function status(text, type) {
     const el = $('cwCloudStatus');
     if (!el) return;
@@ -100,12 +126,18 @@
       return;
     }
     const cards = collection().map(stripHeavyFields);
+    saveCollection(cards);
     status(`Cloud: lade ${cards.length} Karten hoch...`);
     const data = await apiFetch('/api/collection', {
-      method: 'PUT',
+      method: 'POST',
       body: JSON.stringify({ cards })
     });
-    status(`Cloud: ${data.count || cards.length} Karten synchronisiert.`, 'ok');
+    status(
+      data.conflicts
+        ? `Cloud: ${data.accepted} gespeichert, ${data.conflicts} neuere Cloud-Versionen beibehalten.`
+        : `Cloud: ${data.accepted ?? data.count ?? cards.length} Karten synchronisiert.`,
+      data.conflicts ? 'warn' : 'ok'
+    );
     if (!silent) toast('Cloud-Sync hochgeladen');
   }
   async function pullCloud() {
@@ -114,9 +146,12 @@
       return;
     }
     status('Cloud: lade Sammlung...');
-    const data = await apiFetch('/api/collection');
-    saveCollection(data.cards || []);
-    status(`Cloud: ${data.count || 0} Karten geladen. App wird aktualisiert.`, 'ok');
+    const cursor = syncCursor();
+    const data = await apiFetch(cursor ? `/api/collection?since=${encodeURIComponent(cursor)}` : '/api/collection');
+    const cards = cursor ? mergeCards(collection(), data.cards || []) : (data.cards || []).map(normalizeLocalCard);
+    saveCollection(cards);
+    saveSyncCursor(data.syncCursor);
+    status(`Cloud: ${data.count || 0} Aenderungen geladen. App wird aktualisiert.`, 'ok');
     toast('Cloud-Sammlung geladen');
     setTimeout(() => location.reload(), 700);
   }
@@ -127,13 +162,29 @@
     }
     status('Cloud: fuehre lokale und Cloud-Sammlung zusammen...');
     const data = await apiFetch('/api/collection');
-    const byId = new Map();
-    [...(data.cards || []), ...collection()].forEach((card) => byId.set(String(card.id || `${Date.now()}-${Math.random()}`), stripHeavyFields(card)));
-    const cards = Array.from(byId.values()).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    const cards = mergeCards(data.cards || [], collection()).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
     saveCollection(cards);
     await pushCloud(true);
     status(`Cloud: ${cards.length} Karten zusammengefuehrt. App wird aktualisiert.`, 'ok');
     setTimeout(() => location.reload(), 700);
+  }
+  function newerCard(candidate, current) {
+    if (!current) return true;
+    const candidateVersion = Number(candidate?.version || 1);
+    const currentVersion = Number(current?.version || 1);
+    if (candidateVersion !== currentVersion) return candidateVersion > currentVersion;
+    return Date.parse(candidate?.updatedAt || 0) > Date.parse(current?.updatedAt || 0);
+  }
+  function mergeCards(base, changes) {
+    const byId = new Map((base || []).map((card) => [String(card.id), normalizeLocalCard(card)]));
+    (changes || []).forEach((card) => {
+      const id = String(card?.id || '');
+      if (!id) return;
+      if (card.deleted === true) { byId.delete(id); return; }
+      const normalized = normalizeLocalCard(card);
+      if (newerCard(normalized, byId.get(id))) byId.set(id, normalized);
+    });
+    return Array.from(byId.values());
   }
   function schedulePush() {
     if (syncing || !autoSync() || !currentUser) return;

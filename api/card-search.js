@@ -107,7 +107,7 @@ async function syncPokemonAliases(req, res) {
       aliases += await upsertPokemonNameAliases(sql, species);
       imported += 1;
     } catch (err) {
-      failures.push({ name: item.name, error: err?.message || 'Import fehlgeschlagen' });
+      failures.push({ name: item.name, error: 'Import fehlgeschlagen' });
     }
   });
 

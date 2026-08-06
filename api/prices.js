@@ -1,4 +1,5 @@
 import { getSql, hasSessionOrAdmin } from './_auth.js';
+import { internalError } from './_errors.js';
 import { recordPriceSnapshot } from './_catalog.js';
 import { getCardPrice, normalizeCardInput } from './price-providers.js';
 
@@ -41,7 +42,7 @@ export default async function handler(req, res) {
         const snapshotId = await recordPriceSnapshot(sql, { req, input, result });
         result.snapshotId = snapshotId;
       } catch (snapshotError) {
-        console.warn('Price snapshot write failed', snapshotError?.message || snapshotError);
+        console.warn(JSON.stringify({ event: 'price_snapshot_write_failed', errorName: String(snapshotError?.name || 'Error').slice(0, 80) }));
       }
     }
     const status = result.status || (result.ok === false ? 503 : 200);
@@ -50,6 +51,6 @@ export default async function handler(req, res) {
     if (err?.name === 'AbortError') {
       return res.status(504).json({ ok: false, error: 'Preisabfrage hat zu lange gedauert.' });
     }
-    return res.status(500).json({ ok: false, error: err?.message || 'Preisabfrage fehlgeschlagen.' });
+    return internalError(res, 'Preisabfrage ist voruebergehend nicht verfuegbar.', err);
   }
 }

@@ -1,5 +1,6 @@
 // Adds a checkable National Pokedex tab with manual card assignments.
 (function () {
+  const security = window.CardWizardSecurity;
   if (window.__cwPokedexHelper) return;
   window.__cwPokedexHelper = true;
 
@@ -248,7 +249,7 @@
     }
     const tabs = byId('pokedexGenTabs');
     if (tabs && !tabs.children.length) {
-      tabs.innerHTML = GENERATIONS.map(gen => `<button class="chip${gen.id === activeGen ? ' active' : ''}" data-pokedex-gen="${gen.id}" type="button">${gen.label}<br><span class="small">${gen.region}</span></button>`).join('');
+      tabs.innerHTML = GENERATIONS.map(gen => `<button class="chip${gen.id === activeGen ? ' active' : ''}" data-pokedex-gen="${gen.id}" type="button">${escapeHtml(gen.label)}<br><span class="small">${escapeHtml(gen.region)}</span></button>`).join('');
       tabs.addEventListener('click', event => {
         const button = event.target.closest('[data-pokedex-gen]');
         if (!button) return;
@@ -325,8 +326,8 @@
       if (assigned) badges.push(`<span class="pokedexBadge assigned">${assigned} zugeordnet</span>`);
       if (suggestions.length) badges.push(`<span class="pokedexBadge auto">${suggestions.length} Vorschlag${suggestions.length === 1 ? '' : 'e'}</span>`);
       return `<article class="pokedexCard${isDone ? ' done' : ''}">
-        <img class="pokedexImage" src="${imageUrl(mon.id)}" alt="${displayName(mon.name)}" loading="lazy">
-        <div class="pokedexLine"><input data-pokedex-id="${mon.id}" type="checkbox" ${isDone ? 'checked' : ''}><div class="pokedexName" title="${displayName(mon.name)}">${displayName(mon.name)}</div></div>
+        <img class="pokedexImage" src="${escapeHtml(imageUrl(mon.id))}" alt="${escapeHtml(displayName(mon.name))}" loading="lazy">
+        <div class="pokedexLine"><input data-pokedex-id="${mon.id}" type="checkbox" ${isDone ? 'checked' : ''}><div class="pokedexName" title="${escapeHtml(displayName(mon.name))}">${escapeHtml(displayName(mon.name))}</div></div>
         <div class="pokedexNo">#${String(mon.id).padStart(4, '0')}</div>
         <div class="pokedexBadges">${badges.join('')}</div>
         <button class="pokedexAssignBtn" data-assign-id="${mon.id}" type="button">Karten zuordnen</button>
@@ -400,7 +401,8 @@
     list.innerHTML = cards.map(card => {
       const checkedAttr = selected.has(card.key) ? 'checked' : '';
       const suggestion = suggestions.has(card.key) ? '<span class="pokedexBadge auto">Vorschlag</span>' : '';
-      const image = card.image ? `<img src="${card.image}" alt="${escapeHtml(card.title)}">` : '<img alt="">';
+      const imageUrl = security.safeImageUrl(card.image);
+      const image = imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(card.title)}">` : '<img alt="">';
       return `<label class="pokedexAssignItem">
         <input data-card-key="${escapeHtml(card.key)}" type="checkbox" ${checkedAttr}>
         ${image}

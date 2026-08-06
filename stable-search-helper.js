@@ -1,5 +1,6 @@
 // Stable manual search UI and full i18n alias DB panels.
 (function () {
+  const security = window.CardWizardSecurity;
   if (window.__cwStableSearchHelper) return;
   window.__cwStableSearchHelper = true;
 
@@ -92,7 +93,7 @@
       const item = document.createElement('div');
       item.className = 'matchItem';
       item.innerHTML = `
-        <img loading="lazy" decoding="async" src="${escapeHtml(card.imageSmall || '')}" alt="">
+        <img loading="lazy" decoding="async"${security.safeImageUrl(card.imageSmall) ? ` src="${escapeHtml(security.safeImageUrl(card.imageSmall))}"` : ''} alt="">
         <div>
           <b>${escapeHtml(card.cardmarketName || card.name || '-')}</b>
           <div class="small">${escapeHtml(card.setName || '-')} · ${escapeHtml(card.setCode || '-')} · ${escapeHtml(card.number || '-')} · ${escapeHtml(card.rarity || '')}</div>

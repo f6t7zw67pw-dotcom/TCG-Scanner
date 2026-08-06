@@ -14,6 +14,7 @@ import {
   updateUserPassword,
   verifyPassword
 } from './_auth.js';
+import { internalError } from './_errors.js';
 
 function readAction(req) {
   if (req.method === 'GET') return 'me';
@@ -79,6 +80,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ ok: false, error: 'Unbekannte Auth-Aktion.' });
   } catch (err) {
     const duplicate = String(err?.message || '').includes('duplicate key');
-    return res.status(duplicate ? 409 : 500).json({ ok: false, error: duplicate ? 'Benutzername ist bereits vergeben.' : (err?.message || 'Auth Fehler') });
+    if (duplicate) return res.status(409).json({ ok: false, error: 'Benutzername ist bereits vergeben.' });
+    return internalError(res, 'Authentifizierung ist voruebergehend nicht verfuegbar.', err);
   }
 }
